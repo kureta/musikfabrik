@@ -7,14 +7,22 @@ with app.setup:
     # pyright: basic
 
     import marimo as mo
+    from matplotlib.figure import Figure
     import librosa
     import numpy as np
     import torch
     from torch.nn import functional as F
     import torch.nn as nn
     from scipy.interpolate import interp1d
+    from scipy.signal import find_peaks
 
     from performer.models.ddsp_module import DDSP
+    from musikfabrik.seth import (
+        dissonance,
+        sweep_partials,
+        generate_partial_freqs,
+        generate_partial_amps,
+    )
 
 
 @app.cell(hide_code=True)
@@ -44,14 +52,16 @@ def _():
 def _():
     mo.md(
         r"""
-    ### Move the cell below into a module
-    `get_model(CKPT_PATH)`
+    /// attention | Cleanup.
+
+    Move `HarmonicOscillator` and `get_model()` into a module.
+    ///
     """
     )
     return
 
 
-@app.class_definition
+@app.class_definition(hide_code=True)
 class HarmonicOscillator(nn.Module):
     def __init__(
         self, n_harmonics: int = 64, n_channels: int = 1, sr: int = 48000
@@ -136,7 +146,7 @@ class HarmonicOscillator(nn.Module):
         return signal
 
 
-@app.function
+@app.function(hide_code=True)
 def get_model(ckpt):
     with torch.inference_mode():
         model = DDSP.load_from_checkpoint(ckpt, map_location="cpu")
@@ -159,9 +169,10 @@ def _(VLC_CKPT):
 def _():
     mo.md(
         r"""
-    ### These will be unnecessary
+    /// attention | Use the `composition` module
 
-    There are lots of tools in `composition` module
+    There are lots of helpers to control the DDSP. For now, we use simple lines.
+    ///
     """
     )
     return
@@ -184,12 +195,31 @@ def line(x1, x2, duration):
 def _():
     mo.md(
         r"""
-    ### Convert this into a function
+    /// attention | Cleanup.
 
-    `generate_audio(model, pitch, loudness_db, stretch)` is used in `composition` module. Update function signature everywhere, and add `stretch` ability to all composition tools.
+    `generate_audio` is used in `composition` module. Update function signature everywhere, and add `stretch` ability to all composition tools.
+    ///
     """
     )
     return
+
+
+@app.function
+def generate_audio(instrument, f0, db, stretch):
+    with torch.inference_mode():
+        (f0, master, overtones), noise_ctrl = instrument.controller(
+            torch.from_numpy(f0[None, None, :]),  # .cuda()
+            torch.from_numpy(db[None, None, :]),  # .cuda()
+        )
+
+        # harm = forward(f0, master, overtones, stretch[:, None])
+        harm = instrument.harmonics(f0, master, overtones, stretch[:, None])
+        noise = instrument.noise(noise_ctrl)
+        dry = harm + noise
+        wet = instrument.reverb(dry)
+        out = dry * 0.1 + wet * 0.9
+
+    return out
 
 
 @app.function
@@ -255,24 +285,6 @@ def get_phrase(base_pitch, stretch_factor):
     return f0, db, stretch
 
 
-@app.function
-def generate_audio(instrument, f0, db, stretch):
-    with torch.inference_mode():
-        (f0, master, overtones), noise_ctrl = instrument.controller(
-            torch.from_numpy(f0[None, None, :]),  # .cuda()
-            torch.from_numpy(db[None, None, :]),  # .cuda()
-        )
-
-        # harm = forward(f0, master, overtones, stretch[:, None])
-        harm = instrument.harmonics(f0, master, overtones, stretch[:, None])
-        noise = instrument.noise(noise_ctrl)
-        dry = harm + noise
-        wet = instrument.reverb(dry)
-        out = dry * 0.1 + wet * 0.9
-
-    return out
-
-
 @app.cell
 def _(SAMPLE_RATE, model):
     stretched_features = get_phrase(36.0, 1.05)
@@ -298,11 +310,18 @@ def _():
 
 @app.cell(hide_code=True)
 def _():
+    mo.md(r"""### Load audio file and extract features""")
+    return
+
+
+@app.cell(hide_code=True)
+def _():
     mo.md(
         r"""
-    ### Load audio file and extract features
+    /// attention | TODO:
 
-    #### TODO: also get loudness in db so we can use it to generate DDSP sounds from audio files
+    Also get loudness in db so we can use it to generate DDSP sounds from audio files
+    ///
     """
     )
     return
@@ -403,25 +422,244 @@ def _(SAMPLE_RATE):
 
 @app.cell(hide_code=True)
 def _():
+    mo.md(r"""## Getting consonant intervals from synthetic sounds""")
+    return
+
+
+@app.function
+def get_dissonance_curve(
+    fixed_partials,
+    fixed_amplitudes,
+    partials_to_be_swept,
+    amplitudes_of_swept,
+    start_delta_cents=-100,
+    end_delta_cents=1300,
+    cents_per_bin=0.25,
+):
+    swept_partials = sweep_partials(
+        partials_to_be_swept,
+        start_delta_cents,
+        end_delta_cents,
+        cents_per_bin,
+    )
+    roughness = dissonance(
+        fixed_partials, fixed_amplitudes, swept_partials, amplitudes_of_swept
+    )
+
+    num_points = np.round(
+        (end_delta_cents - start_delta_cents) / cents_per_bin
+    ).astype("int")
+
+    cents = np.linspace(start_delta_cents, end_delta_cents, num_points)
+
+    return cents, roughness
+
+
+@app.function
+def get_synthetic_dissonance_curve(
+    f0=440.0,
+    n_partials=8,
+    stretch_factor_1=1.0,
+    stretch_factor_2=1.0,
+    amp_decay_factor=0.9,
+    start_delta_cents=-100,
+    end_delta_cents=1300,
+    cents_per_bin=0.25,
+):
+    fixed_partials = generate_partial_freqs(f0, n_partials, stretch_factor_1)
+    fixed_amplitudes = generate_partial_amps(1.0, n_partials, amp_decay_factor)
+    partials_to_be_swept = generate_partial_freqs(
+        f0, n_partials, stretch_factor_2
+    )
+
+    cents, roughness = get_dissonance_curve(
+        fixed_partials,
+        fixed_amplitudes,
+        partials_to_be_swept,
+        fixed_amplitudes,
+        start_delta_cents,
+        end_delta_cents,
+        cents_per_bin,
+    )
+
+    return cents, roughness
+
+
+@app.function
+def normalize(x):
+    x -= x.min()
+    x /= x.max()
+    return x
+
+
+@app.function
+def get_consonant_intervals(dissonance_curve, deviation=0.7, distance=20.0):
+    d2 = np.gradient(np.gradient(dissonance_curve))
+    measure = np.minimum(normalize(d2), (1 - normalize(dissonance_curve)))
+    peaks, _ = find_peaks(
+        measure,
+        height=measure.mean() + measure.std() * deviation,
+        distance=distance,
+    )
+
+    return peaks
+
+
+@app.function
+def draw_dissonance_curve(cents_axis, roughness, peaks):
+    fig = Figure(figsize=(12, 5), dpi=300)
+    ax = fig.add_axes((0.05, 0.15, 0.9, 0.8))
+    ax.scatter(cents_axis[peaks], roughness[peaks], color="red")
+    ax.plot(cents_axis, roughness)
+
+    for xii in cents_axis[peaks]:
+        ax.axvline(x=xii, color="b", linestyle="-", alpha=0.3)
+
+    ax.grid(axis="y", which="major", linestyle="--", color="gray", alpha=0.7)
+
+    ax.set_xlabel("interval in cents")
+    ax.set_ylabel("sensory dissonance")
+
+    ax.set_xticks(
+        cents_axis[peaks],
+        [f"{int(np.round(t))}" for t in cents_axis[peaks]],
+    )
+    ax.tick_params(axis="x", rotation=45, labelsize=8)
+
+    return fig
+
+
+@app.cell(hide_code=True)
+def _(deviation_slider, distance_slider, end_slider, start_slider):
+    def generate_example_curve():
+        cents_per_bin = 0.25
+
+        cents_axis, roughness = get_synthetic_dissonance_curve(
+            librosa.note_to_hz("C4"),
+            start_delta_cents=start_slider.value,
+            end_delta_cents=end_slider.value,
+            cents_per_bin=cents_per_bin,
+        )
+        peaks = get_consonant_intervals(
+            roughness,
+            deviation=deviation_slider.value,
+            distance=distance_slider.value,
+        )
+
+        return cents_axis, roughness, peaks
+    return (generate_example_curve,)
+
+
+@app.cell(hide_code=True)
+def _():
+    start_slider = mo.ui.slider(
+        start=-300,
+        stop=300,
+        step=1,
+        value=-100,
+        show_value=True,
+        include_input=True,
+        label="Start",
+    )
+    end_slider = mo.ui.slider(
+        start=-900,
+        stop=1500,
+        step=1,
+        value=1300,
+        show_value=True,
+        include_input=True,
+        label="End",
+    )
+
+    deviation_slider = mo.ui.slider(
+        start=0.0,
+        stop=2.0,
+        step=0.01,
+        value=1.0,
+        show_value=True,
+        include_input=True,
+        label="Deviation",
+    )
+    distance_slider = mo.ui.slider(
+        start=0.0,
+        stop=200.0,
+        step=0.25,
+        value=20.0,
+        show_value=True,
+        include_input=True,
+        label="Distance",
+    )
+
+    mo.hstack(
+        [
+            mo.vstack(
+                [
+                    start_slider,
+                    end_slider,
+                ]
+            ),
+            mo.vstack(
+                [
+                    deviation_slider,
+                    distance_slider,
+                ]
+            ),
+        ]
+    )
+    return deviation_slider, distance_slider, end_slider, start_slider
+
+
+@app.cell
+def _(generate_example_curve):
+    draw_dissonance_curve(*generate_example_curve())
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""## Getting consonant intervals from real sounds""")
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(
+        r"""
+    /// attention | Note:
+
+    Multiply `np.abs(np.fft.rfft(signal,norm="forward")` output with `2` to get the right overtone amplitude value.
+    ///
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _():
     mo.md(
         r"""
     ## TODO: Bring the following in from `my-tools`
 
-    - Dissonance curve calculation
-    - Partials peak finder: Build a UI to select the overtones I want from a sample, using sliders and stuff. Save those overtones with file names/paths
-    - Consonance peak finder: Same as above. Calculate at at least 4 cents per pixel.
-    - Scale generator:
-        - when both instruments are stretched the same they keep the unstretched consonances, and just move them around. In this case we can use the consonances directly, add consonances of the most consonant interval below, and add consonances of the most consonant interval below. This generates an extended family of scales and modes (rotations of scales).
-        - when they are stretched by different amounts, the most consonant intervals begin to bifurcate. In this case, there are too many consonances to apply the same procedure as above. There are 8 unisons, 4 octaves, 2 fifths, and 2 fourths when we take first 8 harmonics for dissonance calculation. We can use these without further modification to create **atmospheres** instead of playing scales.
-    - Try to fit a N^1.x exponential onto the stretched overtones (such as the ones of bells) for maybe unstretching later if the effect sounds interesting.
-    - Compare overtones of some different techniques, registers, dynamics, mutes on horn and trumpet to see if they significantly deviate from harmonic overtones. If not, just assume they are always harmonic.
-    - THEN MOVE AS MUCH STUFF AS POSSIBLE INTO MODULES (normal python files).
-    - After doing all of the above, maybe look into changing stretch factors of instruments in a way that will keep a specific interval consonant, or other stuff on the reverse side of this, i.e. not from partials to intervals but from intervals to partials.
+    - [x] Dissonance curve calculation
+    - [ ] Partials peak finder: Build a UI to select the overtones I want from a sample, using sliders and stuff. Save those overtones with file names/paths
+    - [x] Consonance peak finder: Same as above. Calculate at at least 4 cents per pixel.
+    - [ ] Scale generator:
+        - [ ] when both instruments are stretched at the same ratio they keep the unstretched consonances and just move them around. In this case we can use the consonances directly, add consonances of the most consonant interval below, and add consonances of the most consonant interval above. This generates an extended family of scales and modes (rotations of scales).
+        - [ ] when they are stretched by different amounts, the most consonant intervals begin to bifurcate. In this case, there are too many consonances to apply the same procedure as above. There are 8 unisons, 4 octaves, 2 fifths, and 2 fourths when we take first 8 harmonics for dissonance calculation. We can use these without further modification to create **atmospheres** instead of playing scales.
+    - [ ] Try to fit a N^1.x exponential onto the stretched overtones (such as the ones of bells) for stretching an instrument to the same inharmonicity of another instrument or maybe using the value to unstretch the bell if the effect sounds interesting.
+    - [ ] Compare overtones of some different techniques, registers, dynamics, mutes on horn and trumpet to see if they significantly deviate from harmonic overtones. If not, just assume they are always harmonic.
+    - [ ] THEN MOVE AS MUCH STUFF AS POSSIBLE INTO MODULES (normal python files).
+    - [ ] After doing all of the above, maybe look into changing stretch factors of instruments in a way that will keep a specific interval consonant, or other stuff on the reverse side of this, i.e. not from partials to intervals but from intervals to partials.
 
     ### Focus on bells, DDSP for **power**
     ### Horn and trumpet will mostly play over or under inharmonic sounds
     """
     )
+    return
+
+
+@app.cell
+def _():
     return
 
 
