@@ -4,13 +4,28 @@ from collections import deque
 from itertools import accumulate, cycle
 
 import numpy as np
+import torch
 
 SAMPLE_RATE = 48000
-HOP_SIZE = 64
-SECOND = SAMPLE_RATE // HOP_SIZE
+SECOND = 250
 
-def generate_audio(instrument, pitch, loudness_db):
-    raise NotImplementedError
+
+def generate_audio(instrument, f0, db, stretch):
+    with torch.inference_mode():
+        (f0, master, overtones), noise_ctrl = instrument.controller(
+            torch.from_numpy(f0[None, None, :]),  # .cuda()
+            torch.from_numpy(db[None, None, :]),  # .cuda()
+        )
+
+        # harm = forward(f0, master, overtones, stretch[:, None])
+        harm = instrument.harmonics(f0, master, overtones, stretch[:, None])
+        noise = instrument.noise(noise_ctrl)
+        dry = harm + noise
+        wet = instrument.reverb(dry)
+        out = dry * 0.1 + wet * 0.9
+
+    return out.cpu().squeeze().numpy()
+
 
 def rescale(xs, min_val, max_val):
     norm = (xs - np.min(xs)) / (np.max(xs) - np.min(xs))
@@ -26,7 +41,12 @@ def fractal(points, n=3):
     points = np.array(points)
     segments = points.copy()
     for _ in range(n):
-        segments = np.concatenate([rescale_first_last(points, f, s)[:-1] for f, s in zip(segments, segments[1:])])
+        segments = np.concatenate(
+            [
+                rescale_first_last(points, f, s)[:-1]
+                for f, s in zip(segments, segments[1:])
+            ]
+        )
         segments = np.concatenate((segments, points[-1:]))
     return segments
 
@@ -58,17 +78,17 @@ def time_to_step(duration):
 
 
 def get_t(duration):
-    return np.linspace(0., duration, time_to_step(duration))
+    return np.linspace(0.0, duration, time_to_step(duration))
 
 
-def phasor(duration, freq, phase=0.):
+def phasor(duration, freq, phase=0.0):
     t = freq * get_t(duration) + phase
-    signal = t % 1.
+    signal = t % 1.0
 
     return signal
 
 
-def sinusoid(duration, freq, center=0., amp=1., phase=0., power=1.):
+def sinusoid(duration, freq, center=0.0, amp=1.0, phase=0.0, power=1.0):
     t = get_t(duration)
     w = freq * 2 * np.pi
     phase *= 2 * np.pi
@@ -77,23 +97,23 @@ def sinusoid(duration, freq, center=0., amp=1., phase=0., power=1.):
     return signal
 
 
-def sweeping_sinusoid(duration, f0, f1, center=0., amp=1., phase=0., power=1.):
+def sweeping_sinusoid(duration, f0, f1, center=0.0, amp=1.0, phase=0.0, power=1.0):
     t = get_t(duration)
     w0 = f0 * 2 * np.pi
     w1 = f1 * 2 * np.pi
     a = (w1 - w0) / duration
     b = w0
     phase *= 2 * np.pi
-    signal = center + amp * (np.sin((a / 2) * (t ** 2) + b * t + phase) ** power)
+    signal = center + amp * (np.sin((a / 2) * (t**2) + b * t + phase) ** power)
 
     return signal
 
 
-def constant(duration, value=0.):
-    return np.ones(time_to_step(duration)) * value
+def constant(duration, value=0.0):
+    return np.ones(time_to_step(duration), dtype="float32") * value
 
 
-def line_segment(duration, start=0., end=1.):
+def line_segment(duration, start=0.0, end=1.0):
     t = get_t(duration)
     a = (end - start) / duration
     b = start
@@ -101,19 +121,19 @@ def line_segment(duration, start=0., end=1.):
     return a * t + b
 
 
-def sweeping_phasor(duration, f0, f1, phase=0.):
+def sweeping_phasor(duration, f0, f1, phase=0.0):
     t = get_t(duration)
     a = (f1 - f0) / duration
     b = f0
 
-    t = (a / 2) * (t ** 2) + b * t + phase
+    t = (a / 2) * (t**2) + b * t + phase
 
-    signal = t % 1.
+    signal = t % 1.0
 
     return signal
 
 
-def triangle(duration, freq, ratio=0.5, lowest=0., highest=1., phase=0., power=1.):
+def triangle(duration, freq, ratio=0.5, lowest=0.0, highest=1.0, phase=0.0, power=1.0):
     t = phasor(duration, freq, phase)
 
     signal = t / ratio
@@ -126,7 +146,9 @@ def triangle(duration, freq, ratio=0.5, lowest=0., highest=1., phase=0., power=1
     return signal
 
 
-def sweeping_triangle(duration, f0, f1, ratio=0.5, lowest=0., highest=1., phase=0., power=1.):
+def sweeping_triangle(
+    duration, f0, f1, ratio=0.5, lowest=0.0, highest=1.0, phase=0.0, power=1.0
+):
     t = sweeping_phasor(duration, f0, f1, phase)
 
     signal = t / ratio
@@ -139,21 +161,21 @@ def sweeping_triangle(duration, f0, f1, ratio=0.5, lowest=0., highest=1., phase=
     return signal
 
 
-def square(duration, freq, ratio=0.5, lowest=0., highest=1., phase=0.):
+def square(duration, freq, ratio=0.5, lowest=0.0, highest=1.0, phase=0.0):
     t = phasor(duration, freq, phase)
     signal = np.ones_like(t)
-    signal[t > ratio] = 0.
+    signal[t > ratio] = 0.0
 
     signal = rescale(signal, lowest, highest)
 
     return signal
 
 
-def sweeping_square(duration, f0, f1, ratio=0.5, lowest=0., highest=1., phase=0.):
+def sweeping_square(duration, f0, f1, ratio=0.5, lowest=0.0, highest=1.0, phase=0.0):
     t = sweeping_phasor(duration, f0, f1, phase)
 
     signal = np.ones_like(t)
-    signal[t > ratio] = 0.
+    signal[t > ratio] = 0.0
 
     signal = rescale(signal, lowest, highest)
 
@@ -161,14 +183,12 @@ def sweeping_square(duration, f0, f1, ratio=0.5, lowest=0., highest=1., phase=0.
 
 
 def adsr(a, d, s, r, peak, vol):
-    attack = line_segment(a, 0., peak)
+    attack = line_segment(a, 0.0, peak)
     decay = line_segment(d, peak, vol)
     sustain = constant(s, vol)
     release = line_segment(r, vol, 0)
 
-    envelop = np.concatenate([
-        attack, decay, sustain, release
-    ])
+    envelop = np.concatenate([attack, decay, sustain, release])
 
     return envelop
 
@@ -203,18 +223,18 @@ def pad_to_dur(array, dur):
 
 
 scales = {
-    'major': [0, 2, 4, 5, 7, 9, 11],
-    'melodic_minor': [0, 2, 3, 5, 7, 9, 11],
-    'harmonic_major': [0, 2, 4, 5, 7, 8, 11],
-    'harmonic_minor': [0, 2, 3, 5, 7, 8, 11],
-    'diminished': [0, 2, 3, 5, 6, 8, 9, 11],
-    'whole-tone': [0, 2, 4, 6, 8, 10],
-    'augmented': [0, 3, 4, 7, 8, 11],
-    'chromatic': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    "major": [0, 2, 4, 5, 7, 9, 11],
+    "melodic_minor": [0, 2, 3, 5, 7, 9, 11],
+    "harmonic_major": [0, 2, 4, 5, 7, 8, 11],
+    "harmonic_minor": [0, 2, 3, 5, 7, 8, 11],
+    "diminished": [0, 2, 3, 5, 6, 8, 9, 11],
+    "whole-tone": [0, 2, 4, 6, 8, 10],
+    "augmented": [0, 3, 4, 7, 8, 11],
+    "chromatic": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
 }
 
 
-def autotune(f0_midi, amount=0.0, scale='chromatic', rotate=0, offset=0):
+def autotune(f0_midi, amount=0.0, scale="chromatic", rotate=0, offset=0):
     """Reduce variance of f0 from the chromatic or scale intervals."""
     if isinstance(scale, list):
         scale = deque(scale)
@@ -236,7 +256,6 @@ def autotune_explicit(f0_midi, amount, scale):
     return f0_midi - amount * midi_diff
 
 
-
 def scale_from_intervals(intervals):
     steps = cycle(intervals)
     scale = [0]
@@ -244,7 +263,7 @@ def scale_from_intervals(intervals):
     while scale[-1] < 120:
         scale.append(scale[-1] + next(steps))
 
-    return np.array(scale, dtype='int')
+    return np.array(scale, dtype="int")
 
 
 def harmonics_to_cents(harmonics):

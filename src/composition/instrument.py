@@ -12,7 +12,7 @@ from marimo import audio
 from matplotlib import animation, gridspec
 from matplotlib.ticker import MaxNLocator
 
-from composition.common import HOP_SIZE, SECOND, constant, generate_audio
+from composition.common import SECOND, constant, generate_audio
 
 GOLDEN = 1.618033989
 SILVER = 2.414213562
@@ -22,7 +22,7 @@ FPS = 30
 
 
 def get_cents(midi):
-    c = int(f'{midi:.2f}'.split('.')[1])
+    c = int(f"{midi:.2f}".split(".")[1])
     if c > 50:
         c -= 100
     return c
@@ -35,9 +35,9 @@ def get_note(midi):
     if cents == 0:
         return name
     elif cents > 0:
-        return f'{name} +{cents}'
+        return f"{name} +{cents}"
     else:
-        return f'{name} {cents}'
+        return f"{name} {cents}"
 
 
 v_get_note = np.vectorize(get_note)
@@ -48,9 +48,10 @@ def note_formatter(x, _pos=None):
 
 
 def time_formatter(x, _pos=None):
-    return f'{x:.1f}'
+    return f"{x:.1f}"
 
 
+# This padding value is weird
 def pad(xs, duration, value=None):
     if value is None:
         value = xs.min()
@@ -67,14 +68,19 @@ def show(pitch, loudness, title=None, offset=0.0):
 
     t = np.linspace(0, dur, steps) + offset
 
-    fig, (ax1, ax2) = plt.subplots(2, sharex=True, figsize=(4 * COPPER, 4), gridspec_kw={'height_ratios': [COPPER, 1]})
+    fig, (ax1, ax2) = plt.subplots(
+        2,
+        sharex=True,
+        figsize=(4 * COPPER, 4),
+        gridspec_kw={"height_ratios": [COPPER, 1]},
+    )
     fig.subplots_adjust(hspace=0)
 
     if title:
         ax1.set_ylabel(title)
 
     # pitch
-    ax1.plot(t, pitch, color='blue')
+    ax1.plot(t, pitch, color="blue")
     ax1.axes.xaxis.set_visible(False)
     ax1.yaxis.set_major_formatter(note_formatter)
     y_start = np.floor(pitch.min())
@@ -85,8 +91,8 @@ def show(pitch, loudness, title=None, offset=0.0):
     ax1.grid(True)
 
     # loudness
-    ax2.plot(t, loudness, color='blue')
-    ax2.fill_between(t, min(loudness), loudness, color='red', alpha=0.75)
+    ax2.plot(t, loudness, color="blue")
+    ax2.fill_between(t, min(loudness), loudness, color="red", alpha=0.75)
     ax2.axes.yaxis.set_visible(False)
     x_ticks = np.concatenate([t, t[-1:] + 1 / SECOND])
     ax2.set_xticks(x_ticks[::SECOND])
@@ -96,11 +102,12 @@ def show(pitch, loudness, title=None, offset=0.0):
 
 
 class Phrase:
-    def __init__(self, pitch, loudness):
+    def __init__(self, pitch, loudness, stretch):
         assert len(pitch) == len(loudness)
 
-        self.pitch = pitch
-        self.loudness = loudness
+        self.pitch = pitch.astype("float32")
+        self.loudness = loudness.astype("float32")
+        self.stretch = stretch.astype("float32")
 
     def show(self):
         fig = show(self.pitch, self.loudness)
@@ -110,10 +117,15 @@ class Phrase:
     def audio(self, instrument):
         padded_pitch = pad(self.pitch, 2)
         padded_loudness = pad(self.loudness, 2, value=-110)
-        return generate_audio(instrument, padded_pitch, padded_loudness)
+        padded_stretch = pad(self.stretch, 2)
+        audio = generate_audio(
+            instrument, padded_pitch, padded_loudness, padded_stretch
+        )
+
+        return audio
 
     def play(self, instrument):
-        return audio(src=self.audio(instrument), rate=16000, normalize=False)
+        return audio(src=self.audio(instrument), rate=48000, normalize=False)
 
     def __len__(self):
         return len(self.pitch)
@@ -124,7 +136,7 @@ class Part:
         self.part_name = part_name
         self.instrument = instrument
         self.phrases = []
-        self.transpose = 0.
+        self.transpose = 0.0
 
     def add_phrase(self, phrase):
         self.phrases.append(phrase)
@@ -137,10 +149,18 @@ class Part:
     def loudness(self):
         return np.concatenate([p.loudness for p in self.phrases])
 
+    @property
+    def stretch(self):
+        return np.concatenate([p.stretch for p in self.phrases])
+
     def show(self, offset=None):
         if offset:
-            fig = show(self.pitch[int(offset * SECOND):], self.loudness[int(offset * SECOND):], offset=offset,
-                       title=self.part_name)
+            fig = show(
+                self.pitch[int(offset * SECOND) :],
+                self.loudness[int(offset * SECOND) :],
+                offset=offset,
+                title=self.part_name,
+            )
         else:
             fig = show(self.pitch, self.loudness, title=self.part_name)
 
@@ -150,12 +170,17 @@ class Part:
     def audio(self):
         padded_pitch = pad(self.pitch, 2)
         padded_loudness = pad(self.loudness, 2, value=-110)
-        return generate_audio(self.instrument, padded_pitch, padded_loudness)
+        padded_stretch = pad(self.stretch, 2)
+        audio = generate_audio(
+            self.instrument, padded_pitch, padded_loudness, padded_stretch
+        )
 
-    def video(self, path, codec='h264'):
+        return audio
+
+    def video(self, path, codec="h264"):
         fig = show(self.pitch, self.loudness, self.part_name)
-        vline1 = fig.get_axes()[0].axvline(0.)
-        vline2 = fig.get_axes()[1].axvline(0.)
+        vline1 = fig.get_axes()[0].axvline(0.0)
+        vline2 = fig.get_axes()[1].axvline(0.0)
 
         def show_time(t):
             vline1.set_data([t / FPS, t / FPS], [0, 1])
@@ -167,9 +192,11 @@ class Part:
 
     def play(self, offset=None):
         if offset:
-            return audio(src=self.audio()[int(offset * 16000):], rate=16000, normalize=False)
+            return audio(
+                src=self.audio()[int(offset * 48000) :], rate=48000, normalize=False
+            )
 
-        return audio(src=self.audio(), rate=16000, normalize=False)
+        return audio(src=self.audio(), rate=48000, normalize=False)
 
     def __len__(self):
         return len(self.pitch)
@@ -183,7 +210,7 @@ class Score:
             self.parts = parts
 
         self.num_steps = max(len(p) for p in self.parts)
-        self.duration = self.num_steps * HOP_SIZE
+        self.duration = self.num_steps * SECOND
 
     def show(self, begin=0, end=-1, pitch_ticks=None):
         if end > 0:
@@ -204,7 +231,9 @@ class Score:
         outer_grid = gridspec.GridSpec(n, 1)
 
         for idx, (part, cell) in enumerate(zip(parts, outer_grid)):
-            inner_grid = gridspec.GridSpecFromSubplotSpec(2, 1, cell, hspace=0, height_ratios=(BRONZE, 1))
+            inner_grid = gridspec.GridSpecFromSubplotSpec(
+                2, 1, cell, hspace=0, height_ratios=(BRONZE, 1)
+            )
 
             # From here we can plot using inner_grid's SubplotSpecs
             ax1 = plt.subplot(inner_grid[0, 0])
@@ -213,7 +242,7 @@ class Score:
             ax1.set_ylabel(part.part_name)
 
             # pitch
-            ax1.plot(t, part.pitch[begin:end], color='blue')
+            ax1.plot(t, part.pitch[begin:end], color="blue")
             ax1.axes.xaxis.set_visible(False)
             ax1.yaxis.set_major_formatter(note_formatter)
             if not pitch_ticks:
@@ -224,21 +253,25 @@ class Score:
             else:
                 ax1.set_yticks(pitch_ticks[idx])
             ax1.yaxis.set_minor_locator(MaxNLocator(nbins=25, integer=True))
-            ax1.yaxis.set_tick_params(labelsize='x-small')
+            ax1.yaxis.set_tick_params(labelsize="x-small")
 
-            ax1.grid(True, which='major', color='black', linestyle='-')
-            ax1.grid(True, which='minor', linestyle='--')
+            ax1.grid(True, which="major", color="black", linestyle="-")
+            ax1.grid(True, which="minor", linestyle="--")
 
             # loudness
-            loudness_limits = [np.min(part.loudness[part.loudness > -120]),
-                               np.max(part.loudness)]
-            ax2.plot(t, part.loudness[begin:end], color='blue')
-            ax2.fill_between(t, loudness_limits[0], part.loudness[begin:end], color='red', alpha=0.75)
+            loudness_limits = [
+                np.min(part.loudness[part.loudness > -120]),
+                np.max(part.loudness),
+            ]
+            ax2.plot(t, part.loudness[begin:end], color="blue")
+            ax2.fill_between(
+                t, loudness_limits[0], part.loudness[begin:end], color="red", alpha=0.75
+            )
             ax2.axes.yaxis.set_visible(False)
             # ax2.set_yticks(loudness_limits)
             x_ticks = np.concatenate([t, t[-1:] + 1 / SECOND])
             if len(x_ticks > 8000):
-                ax2.set_xticks(x_ticks[::SECOND*2])
+                ax2.set_xticks(x_ticks[:: SECOND * 2])
             else:
                 ax2.set_xticks(x_ticks[::SECOND])
             ax2.set_ylim(loudness_limits)
@@ -247,7 +280,7 @@ class Score:
 
         return figure
 
-    def video(self, path, begin=0, end=-1, pitch_ticks=None, codec='h264'):
+    def video(self, path, begin=0, end=-1, pitch_ticks=None, codec="h264"):
         fig = self.show(begin, end, pitch_ticks)
         start = begin / SECOND
         vlines = [ax.axvline(start) for ax in fig.get_axes()]
@@ -265,27 +298,31 @@ class Score:
         # anim.save(path, writer=animation.FFMpegWriter(FPS, codec), dpi=100)
         for i in range(n_frames):
             show_time(i)
-            ppp = Path(path).parent / f'{begin / SECOND:.1f}-{i:05d}.png'
-            fig.savefig(ppp, format='png', dpi=100, facecolor='white', transparent=False)
+            ppp = Path(path).parent / f"{begin / SECOND:.1f}-{i:05d}.png"
+            fig.savefig(
+                ppp, format="png", dpi=100, facecolor="white", transparent=False
+            )
 
     def audio(self):
         result = np.zeros(self.duration)
         for p in self.parts:
             audio = p.audio()
-            result[:len(audio)] += audio
+            result[: len(audio)] += audio
 
         return result
 
     def play(self):
-        return audio(src=self.audio(), rate=16000, normalize=False)
+        return audio(src=self.audio(), rate=48000, normalize=False)
 
-    def save(self, name, base_path='./audio-data/original'):
+    def save(self, name, base_path="./audio-data/original"):
         path = os.path.join(base_path, name)
         os.makedirs(path, exist_ok=True)
-        with open(os.path.join(path, 'score.pkl'), 'wb') as f:
+        with open(os.path.join(path, "score.pkl"), "wb") as f:
             pickle.dump(self, f)
         for part in self.parts:
-            soundfile.write(os.path.join(path, f'{name}-{part.part_name}.wav'), part.audio(), 16000)
+            soundfile.write(
+                os.path.join(path, f"{name}-{part.part_name}.wav"), part.audio(), 48000
+            )
 
         # pp = PdfPages(os.path.join(path, f'{name}.pdf'))
         # self.show()

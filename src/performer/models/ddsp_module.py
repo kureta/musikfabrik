@@ -3,17 +3,18 @@
 import numpy as np
 import torch
 import wandb
-from performer.utils.constants import SAMPLE_RATE
-from performer.utils.features import Loudness
-from performer.utils.multiscale_stft_loss import distance
 from pytorch_lightning import LightningModule
 from torchmetrics import MeanAbsoluteError, MinMetric
 
 from performer.models.components.controller import (Controller,
                                                     TransformerController)
 from performer.models.components.filtered_noise import FilteredNoise
-from performer.models.components.harmonic_oscillator import HarmonicOscillator
+from performer.models.components.harmonic_oscillator import (
+    HarmonicOscillator, StretchingHarmonicOscillator)
 from performer.models.components.reverb import ConvolutionalReverb
+from performer.utils.constants import SAMPLE_RATE
+from performer.utils.features import Loudness
+from performer.utils.multiscale_stft_loss import distance
 
 
 def multiline_time_plot(values, name):
@@ -25,6 +26,18 @@ def multiline_time_plot(values, name):
         title=name,
         xname="time",
     )
+
+
+def get_harmonic_stretching_model(ckpt):
+    with torch.inference_mode():
+        model = DDSP.load_from_checkpoint(ckpt, map_location="cpu")
+        model.eval()
+    # swapping out with modified `harmonics` to be able to control overtone stretching
+    model.harmonics = StretchingHarmonicOscillator(
+        model.harmonics.n_harmonics, model.harmonics.n_channels
+    )
+
+    return model
 
 
 class DDSP(LightningModule):
