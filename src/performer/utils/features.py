@@ -1,7 +1,8 @@
+# pyright: basic
+
 import librosa
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torchaudio.functional as AF
 import torchcrepe
 from torchmetrics import MeanAbsoluteError
@@ -31,7 +32,9 @@ class LoudnessMAE(MeanAbsoluteError):
 class Loudness(nn.Module):
     def __init__(self):
         super().__init__()
-        frequencies = librosa.fft_frequencies(sr=SAMPLE_RATE, n_fft=N_FFT).astype("float32")
+        frequencies = librosa.fft_frequencies(sr=SAMPLE_RATE, n_fft=N_FFT).astype(
+            "float32"
+        )
         a_weighting = librosa.A_weighting(frequencies)[None, :].astype("float32")
         self.register_buffer("a_weighting", torch.from_numpy(a_weighting))
 
@@ -46,7 +49,7 @@ class Loudness(nn.Module):
             window=window,
             return_complex=True,
             # pad_mode="reflect",
-            center=False,
+            # center=False,
             normalized=True,
         ).transpose(1, 2)
 

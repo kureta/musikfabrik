@@ -8,6 +8,7 @@ with app.setup:
     import itertools
 
     import marimo as mo
+    import numpy as np
 
 
 @app.cell(hide_code=True)
@@ -29,6 +30,7 @@ def _():
         [1200],
     ]
 
+    # streetch factor = 1.05
     stretched_intervals = [
         [0],
         [89, 117, 192, 214, 243],
@@ -140,10 +142,20 @@ def _(harmonic_intervals, stretched_intervals):
 
 
 @app.function
-def rotate(scale):
-    tmp = scale[1:]
-    tmp.append(tmp[0] + tmp[-1])
-    tmp = [t - tmp[0] for t in tmp]
+def to_delta(d):
+    return d[1:] - d[:-1]
+
+
+@app.function
+def from_delta(d):
+    return np.concatenate([[0], np.cumsum(d)])
+
+
+@app.function
+def rotate(scale, n=1):
+    tmp = list(to_delta(np.array(scale)))
+    tmp = tmp[-n:] + tmp[:-n]
+    tmp = list(from_delta(np.array(tmp)))
 
     return tmp
 
@@ -153,7 +165,7 @@ def get_rotations(scales):
     rotated = []
 
     for scale in scales:
-        for _ in range(len(scale) - 1):
+        for _ in range(len(scale) - 2):
             scale = rotate(scale)
             rotated.append(scale)
 

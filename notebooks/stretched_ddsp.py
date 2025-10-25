@@ -1,17 +1,21 @@
+# pyright: basic
+
 import marimo
 
 __generated_with = "0.17.0"
 app = marimo.App(width="medium")
 
 with app.setup:
-    # pyright: basic
 
     import librosa
     import marimo as mo
     import numpy as np
+    import torch
 
-    from performer.models.ddsp_module import get_harmonic_stretching_model
     import composition.common as cc
+    from performer.models.ddsp_module import get_harmonic_stretching_model
+    from performer.utils import constants as pc
+    from performer.utils.features import Loudness
 
     FPS = 250
     SAMPLE_RATE = 48000
@@ -87,14 +91,10 @@ def _():
 
     def t(end, start=0.0, fps=FPS):
         duration = end - start
-        return np.linspace(
-            start, end, int(np.round(duration * fps)), dtype="float32"
-        )
-
+        return np.linspace(start, end, int(np.round(duration * fps)), dtype="float32")
 
     def line(x1, x2, duration):
         return t(duration) * (x2 - x1) / duration + x1
-
 
     def get_phrase(base_pitch, stretch_factor):
         dbs = []
@@ -221,13 +221,94 @@ def _(get_phrase, model):
             ]
         )
 
-
     play_ddsp_results()
     return
 
 
 @app.cell
 def _():
+    sample, _ = librosa.load(
+        "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C2-ff-N-N.wav",
+        sr=SAMPLE_RATE,
+    )
+    return (sample,)
+
+
+@app.cell
+def _(sample):
+    f0 = librosa.yin(
+        sample,
+        fmin=librosa.note_to_hz("C2"),
+        fmax=librosa.note_to_hz("C7"),
+        sr=pc.SAMPLE_RATE,
+        frame_length=pc.N_FFT,
+        hop_length=pc.HOP_LENGTH,
+        # center=False
+    ).astype("float32")
+
+    loudness = Loudness()
+    ld = (
+        loudness.get_amp(torch.from_numpy(sample).unsqueeze(0).unsqueeze(0))
+        .squeeze(0)
+        .squeeze(0)
+        .numpy()
+    )
+
+    stretch = np.ones_like(f0) * 1.05
+    return f0, ld
+
+
+@app.cell
+def _(f0, ld, model):
+    controlled_stretched = cc.generate_audio(model, f0, ld, np.ones_like(f0) * 1.05)
+    return (controlled_stretched,)
+
+
+@app.cell
+def _(f0, ld, model):
+    dubling = cc.generate_audio(
+        model,
+        librosa.midi_to_hz(librosa.hz_to_midi(f0) + 8.57),
+        ld,
+        np.ones_like(f0),
+    )
+    return
+
+
+@app.cell
+def _(f0, ld, model):
+    tripling = cc.generate_audio(
+        model,
+        librosa.midi_to_hz(librosa.hz_to_midi(f0) + 11.37),
+        ld,
+        np.ones_like(f0),
+    )
+    return
+
+
+@app.cell
+def _(controlled_stretched, sample):
+    [
+        mo.audio(controlled_stretched, 48000),
+        mo.audio(
+            librosa.effects.pitch_shift(
+                sample, sr=48000, n_steps=857, bins_per_octave=1200
+            ),
+            48000,
+        ),
+        mo.audio(
+            librosa.effects.pitch_shift(
+                sample, sr=48000, n_steps=1137, bins_per_octave=1200
+            ),
+            48000,
+        ),
+    ]
+    return
+
+
+@app.cell
+def _():
+    mo.md("""### mo""")
     return
 
 

@@ -140,9 +140,9 @@ w = Window("Overtone Controls", Rect(100, 100, 420, 240));
 w.layout = HLayout(
     StaticText().string_("Overtone Stretch Factor:"),
     Slider().action_({ |sl|
-		~stretch = sl.value.linlin(0, 1, 1, 1.05).round(0.001);  // (sl.value * 0.05 + 1.0).round(0.01);
+		~stretch = sl.value.linlin(0, 1, 1, 1.1).round(0.001);  // (sl.value * 0.05 + 1.0).round(0.01);
         ~label.string = ~stretch.asString;
-	}).value_(~stretch.linlin(1, 1.05, 0, 1)),
+	}).value_(~stretch.linlin(1, 1.1, 0, 1)),
     ~label = StaticText().string_(~stretch.asString),
     StaticText().string_("Amplitude Decay:"),
     Slider().action_({ |sl|

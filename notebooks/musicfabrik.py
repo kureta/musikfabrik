@@ -132,7 +132,7 @@ def stretch_sample(
     return warped_signal
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _():
     def play_spectrum_stretch_results():
         SAMPLE_PATH = (
@@ -196,7 +196,7 @@ def get_dissonance_curve(
 def get_synthetic_dissonance_curve(
     f0=440.0,
     n_partials=8,
-    stretch_factor_1=1.0,
+    stretch_factor_1=1.05,
     stretch_factor_2=1.0,
     amp_decay_factor=0.9,
     in_dbs=True,
@@ -296,8 +296,8 @@ def _():
         label="Start",
     )
     end_slider = mo.ui.slider(
-        start=-900,
-        stop=1500,
+        start=-2400,
+        stop=2400,
         step=1,
         value=1300,
         show_value=True,
@@ -553,11 +553,11 @@ def _():
 @app.cell
 def _(height_slider, is_loudest, min_distance_slider, min_f_slider):
     SAMPLE_PATH = (
-        # "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C5-ff-N-N.wav"
+        "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C5-ff-N-N.wav"
         # "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C2-ff-N-N.wav"
         # "data/samples/instruments/brass/Horn/flatterzunge/Hn-flatt-F2-ff-N-N.wav"
         # "data/samples/bells/42095__fauxpress__bell-meditation.mp3"
-        "/home/kureta/Documents/repos/musikfabrik/data/samples/bells/62964__ladycailin__deep-bell.wav"
+        # "/home/kureta/Documents/repos/musikfabrik/data/samples/bells/62964__ladycailin__deep-bell.wav"
         # "/home/kureta/Documents/repos/musikfabrik/data/samples/bells/124755__tec_studio__mono_bell_0_d_16sec.wav"
     )
 
