@@ -1,2 +1,7 @@
-['remote "home"']
-    url = https://s3.kureta.xyz
+[core]
+    remote = default
+['remote "default"']
+    url = s3://musikfabrik/
+    configpath = /home/kureta/.config/aws/config
+    credentialpath = /home/kureta/.config/aws/credentials
+    endpointurl = https://s3.kureta.xyz
