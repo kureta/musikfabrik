@@ -1,4 +1,5 @@
 # pyright: basic
+
 import einx as ex
 import numpy as np
 from numpy.typing import NDArray
@@ -7,13 +8,15 @@ from scipy.signal import find_peaks
 FloatArray = NDArray[np.float64]
 
 
-def generate_partial_freqs(
-    f0: float, n_partials: int = 16, stretch_factor: float = 1.0
+def generate_partial_ratios(
+    n_partials: int = 16, stretch_factor: float = 1.0, step_size=1
 ) -> FloatArray:
-    ratios = np.arange(1, n_partials + 1, dtype=np.float64) ** stretch_factor
-    partials = f0 * ratios
+    ratios = (
+        np.arange(1, (n_partials * step_size) + 1, step_size, dtype=np.float64)
+        ** stretch_factor
+    )
 
-    return partials
+    return ratios
 
 
 def generate_partial_amps(

@@ -43,11 +43,13 @@ dependencies = [
 dev = [
   "basedpyright>=1.31.7",
   "isort>=7",
+  "openai>=2.6.1",
   "pytest>=8.4.2",
   "python-lsp-ruff>=2.3",
   "python-lsp-server>=1.13.1",
   "ruff>=0.14.1",
   "ty>=0.0.1a23",
+  "watchdog>=6.0.0",
 ]
 
 [tool.uv.sources]

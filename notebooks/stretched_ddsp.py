@@ -2,11 +2,10 @@
 
 import marimo
 
-__generated_with = "0.17.0"
+__generated_with = "0.17.2"
 app = marimo.App(width="medium")
 
 with app.setup:
-
     import librosa
     import marimo as mo
     import numpy as np
@@ -89,12 +88,17 @@ def _():
 def _():
     # Utilities for generating an example phrase
 
+
     def t(end, start=0.0, fps=FPS):
         duration = end - start
-        return np.linspace(start, end, int(np.round(duration * fps)), dtype="float32")
+        return np.linspace(
+            start, end, int(np.round(duration * fps)), dtype="float32"
+        )
+
 
     def line(x1, x2, duration):
         return t(duration) * (x2 - x1) / duration + x1
+
 
     def get_phrase(base_pitch, stretch_factor):
         dbs = []
@@ -221,6 +225,7 @@ def _(get_phrase, model):
             ]
         )
 
+
     play_ddsp_results()
     return
 
@@ -260,7 +265,9 @@ def _(sample):
 
 @app.cell
 def _(f0, ld, model):
-    controlled_stretched = cc.generate_audio(model, f0, ld, np.ones_like(f0) * 1.05)
+    controlled_stretched = cc.generate_audio(
+        model, f0, ld, np.ones_like(f0) * 1.05
+    )
     return (controlled_stretched,)
 
 

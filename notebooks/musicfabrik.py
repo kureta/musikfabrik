@@ -1,24 +1,24 @@
+# pyright: basic
+
 import marimo
 
-__generated_with = "0.17.0"
+__generated_with = "0.17.2"
 app = marimo.App(width="medium")
 
 with app.setup:
-    # pyright: basic
-
-    import marimo as mo
-    from matplotlib.figure import Figure
     import librosa
+    import marimo as mo
     import numpy as np
+    from matplotlib.figure import Figure
     from scipy.interpolate import interp1d
-    from scipy.signal import find_peaks
     from scipy.ndimage import median_filter
+    from scipy.signal import find_peaks
 
     from musikfabrik.seth import (
         dissonance,
-        sweep_partials,
-        generate_partial_freqs,
         generate_partial_amps,
+        generate_partial_ratios,
+        sweep_partials,
     )
 
     FPS = 250
@@ -204,9 +204,9 @@ def get_synthetic_dissonance_curve(
     end_delta_cents=1300,
     cents_per_bin=0.25,
 ):
-    fixed_partials = generate_partial_freqs(f0, n_partials, stretch_factor_1)
-    partials_to_be_swept = generate_partial_freqs(
-        f0, n_partials, stretch_factor_2
+    fixed_partials = f0 * generate_partial_ratios(n_partials, stretch_factor_1)
+    partials_to_be_swept = f0 * generate_partial_ratios(
+        n_partials, stretch_factor_2
     )
 
     fixed_amplitudes = generate_partial_amps(1.0, n_partials, amp_decay_factor)
@@ -400,7 +400,7 @@ def get_spectrum(
     amplitudes = np.abs(np.fft.rfft(sample, norm="forward"))
     if in_dbs:
         amplitudes = librosa.amplitude_to_db(amplitudes)
-        amplitudes += librosa.A_weighting(frequencies, min_db=-180)
+        amplitudes += librosa.A_weighting(frequencies, min_db=-70)
         amplitudes -= amplitudes.min()
         amplitudes /= amplitudes.max()
 
@@ -553,8 +553,8 @@ def _():
 @app.cell
 def _(height_slider, is_loudest, min_distance_slider, min_f_slider):
     SAMPLE_PATH = (
-        "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C5-ff-N-N.wav"
-        # "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C2-ff-N-N.wav"
+        # "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C5-ff-N-N.wav"
+        "data/samples/instruments/brass/Horn/ordinario/Hn-ord-C2-ff-N-N.wav"
         # "data/samples/instruments/brass/Horn/flatterzunge/Hn-flatt-F2-ff-N-N.wav"
         # "data/samples/bells/42095__fauxpress__bell-meditation.mp3"
         # "/home/kureta/Documents/repos/musikfabrik/data/samples/bells/62964__ladycailin__deep-bell.wav"
@@ -563,7 +563,7 @@ def _(height_slider, is_loudest, min_distance_slider, min_f_slider):
 
     sample, _ = librosa.load(SAMPLE_PATH, sr=SAMPLE_RATE)
     f0, overtones, amps, peaks = get_overtones(
-        sample[48000 * 5 :],
+        sample,
         is_loudest=is_loudest.value,
         in_dbs=True,
         height=height_slider.value,

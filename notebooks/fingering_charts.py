@@ -1,3 +1,5 @@
+# pyright: basic
+
 import marimo
 
 __generated_with = "0.17.0"
@@ -12,13 +14,13 @@ def _(mo):
 
 @app.cell
 def _():
-    # pyright: basic
     import math
     import subprocess
-    from typing_extensions import Self
 
     import librosa
     import marimo as mo
+    from typing_extensions import Self
+
     return Self, librosa, math, mo, subprocess
 
 
@@ -112,11 +114,11 @@ def _(math):
 
     valve_map = ["", "2", "1", "12(3)", "23", "13", "123"]
 
-
     def nround(n):
         if n - math.floor(n) < 0.5:
             return math.floor(n)
         return math.ceil(n)
+
     return (
         horn_transpose,
         n_overtones,
@@ -130,9 +132,7 @@ def _(math):
 @app.cell
 def _(Self, horn_transpose, librosa, nround, octave_map):
     class Microtone:
-        def __init__(
-            self, f_midi: float, valve: str, overtone: int, side: str = ""
-        ):
+        def __init__(self, f_midi: float, valve: str, overtone: int, side: str = ""):
             self.round_midi_cents = 100 * nround(f_midi) - 200
             self.midi_cents = nround(100 * f_midi) - 200
             self.deviation = self.midi_cents - self.round_midi_cents
@@ -180,6 +180,7 @@ def _(Self, horn_transpose, librosa, nround, octave_map):
 
         def __lt__(self, other: Self):
             return self.midi_cents < other.midi_cents
+
     return (Microtone,)
 
 
