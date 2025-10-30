@@ -31,6 +31,7 @@ with app.setup:
     )
     from performer.utils.features import Loudness
 
+    # TODO: disable backprop when using this
     loudness_detector = Loudness()
 
 
@@ -82,10 +83,10 @@ def get_spectrum(
     if not in_dbs and A_weighted:
         raise ValueError("A-weighting only makes sense in dB scale.")
 
-    frequencies = np.fft.rfftfreq(sample.shape[0]) * sr
-    amplitudes = np.abs(np.fft.rfft(sample, norm="forward"))
+    frequencies = (np.fft.rfftfreq(sample.shape[0]) * sr)[1:]
+    amplitudes = np.abs(np.fft.rfft(sample, norm="forward"))[1:]
     # set DC offset to 0
-    amplitudes[0] = 0.0
+    # amplitudes[0] = 0.0
 
     if in_dbs:
         amplitudes = librosa.amplitude_to_db(amplitudes)
@@ -200,7 +201,9 @@ def _():
     )
     max_f = mo.ui.slider(
         steps=np.logspace(np.log2(6000.0), np.log2(24000.0), num=100, base=2.0),
-        value=np.logspace(np.log2(6000.0), np.log2(24000.0), num=100, base=2.0)[0],
+        value=np.logspace(np.log2(6000.0), np.log2(24000.0), num=100, base=2.0)[
+            -1
+        ],
         show_value=True,
         label="Maximum Frequency (Hz)",
     )
@@ -222,6 +225,7 @@ def _():
         steps=np.logspace(np.log2(4.0), np.log2(1024.0), num=100, base=2.0),
         value=np.logspace(np.log2(4.0), np.log2(1024.0), num=100, base=2.0)[0],
         show_value=True,
+        include_input=True,
         label="F0 (Hz)",
     )
     mo.vstack(
@@ -255,10 +259,9 @@ def _():
         ]
     )
     return (
-        A_weighted,
         SAMPLE_PATHS,
         f_zero,
-        in_dbs,
+        filter_range,
         max_f,
         n_partials,
         sample_selection,
@@ -266,7 +269,7 @@ def _():
 
 
 @app.cell
-def _(A_weighted, f_zero, in_dbs, max_f, n_partials, sample_selection):
+def _(f_zero, filter_range, max_f, n_partials, sample_selection):
     # WARNING: Almost all slider values are currently overriden because I'm trying to minimize
     # the number of manually tuned parameters.
     # We need to add and additive synthesis section next to compare the results.
@@ -274,16 +277,17 @@ def _(A_weighted, f_zero, in_dbs, max_f, n_partials, sample_selection):
     # just setting min_f works well with the following calculations.
     # Look at the lowest frequency partial and set min_f to a bit lower than that.
     # Take first n partials rather than the loudest n partials.
+    # Also plot the entire amplitude spectrum. Get the frequency of the first partial we are interested in.
+    # Set f0 to a bit lower than that.
+    # Create a form, where submit button saves f0, amplitudes, overtone ratios, and sample path to a json file.
 
     static_sample = load_sample(sample_selection.value)
-    freqs, amps_ = get_spectrum(
-        static_sample, in_dbs=in_dbs.value, A_weighted=A_weighted.value
-    )
-
+    freqs, amps_ = get_spectrum(static_sample, in_dbs=False, A_weighted=False)
+    filter_range
     peak_idx, amps = get_partial_indices(
         freqs,
         amps_,
-        height=0.01,  # height.value,
+        height=0.025,  # height.value,
         distance=f_zero.value / 4,  # distance.value,
         min_f=f_zero.value * (8 / 9),  # min_f.value,
         max_f=max_f.value,

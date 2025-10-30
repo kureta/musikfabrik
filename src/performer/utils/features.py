@@ -34,8 +34,10 @@ class Loudness(nn.Module):
         super().__init__()
         frequencies = librosa.fft_frequencies(sr=SAMPLE_RATE, n_fft=N_FFT).astype(
             "float32"
+        )[1:]
+        a_weighting = librosa.A_weighting(frequencies, min_db=-80)[None, :].astype(
+            "float32"
         )
-        a_weighting = librosa.A_weighting(frequencies)[None, :].astype("float32")
         self.register_buffer("a_weighting", torch.from_numpy(a_weighting))
 
     def get_amp(self, x):
@@ -51,7 +53,7 @@ class Loudness(nn.Module):
             # pad_mode="reflect",
             # center=False,
             normalized=True,
-        ).transpose(1, 2)
+        ).transpose(1, 2)[:, :, 1:]
 
         # Compute power.
         amplitude = torch.abs(s)
