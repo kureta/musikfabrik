@@ -91,7 +91,9 @@ def generate_synthetic_partials(
         amplitudes = librosa.amplitude_to_db(amplitudes)
         amplitudes += librosa.A_weighting(partials, min_db=-180)
         amplitudes -= amplitudes.min()
-        amplitudes /= amplitudes.max()
+        amp_max = amplitudes.max()
+        if amp_max > 0:
+            amplitudes /= amp_max
 
     return partials, amplitudes
 
@@ -142,9 +144,18 @@ def calculate_synthetic_dissonance_curve(
 
 
 def normalize(x: FloatArray) -> FloatArray:
-    """Normalize array to [0, 1] range."""
+    """Normalize array to [0, 1] range.
+    
+    Args:
+        x: Array to normalize
+        
+    Returns:
+        Normalized array, or zeros if input has no range
+    """
     x = x - x.min()
-    x = x / x.max()
+    x_max = x.max()
+    if x_max > 0:
+        x = x / x_max
     return x
 
 
@@ -214,11 +225,17 @@ def _validate_scale(scale: list[int], intervals: list[list[int]]) -> bool:
     
     Args:
         scale: Scale to validate
-        intervals: List of interval groups
+        intervals: List of interval groups (must have 8 elements)
         
     Returns:
         True if scale is valid, False otherwise
+        
+    Raises:
+        ValueError: If intervals list doesn't have 8 elements
     """
+    if len(intervals) != 8:
+        raise ValueError(f"Expected 8 interval groups, got {len(intervals)}")
+    
     octave = intervals[7][0]
     # Create extended scale for interval checking (avoid modifying input)
     extended_scale = scale[:-1] + [scale[-1] + item for item in scale]
@@ -229,9 +246,13 @@ def _validate_scale(scale: list[int], intervals: list[list[int]]) -> bool:
 
             # Handle special cases for 4ths and 5ths
             if interval == 3:
+                if len(intervals[interval - 1]) == 0 or len(intervals[interval + 1]) <= 1:
+                    continue
                 lower_limit = max(intervals[interval - 1])
                 upper_limit = min(intervals[interval + 1][1:])
             elif interval == 4:
+                if len(intervals[interval - 1]) <= 1 or len(intervals[interval + 1]) == 0:
+                    continue
                 lower_limit = max(intervals[interval - 1][:-1])
                 upper_limit = min(intervals[interval + 1])
             elif interval == 7:
@@ -239,6 +260,8 @@ def _validate_scale(scale: list[int], intervals: list[list[int]]) -> bool:
                     return False
                 return True
             else:
+                if len(intervals[interval - 1]) == 0 or len(intervals[interval + 1]) == 0:
+                    continue
                 lower_limit = max(intervals[interval - 1])
                 upper_limit = min(intervals[interval + 1])
 

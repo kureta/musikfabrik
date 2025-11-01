@@ -763,6 +763,13 @@ def __(
             durations = [
                 float(d.strip()) for d in sequence_durations.value.split(",")
             ]
+            
+            # Validate array lengths
+            if len(pitches) != len(durations):
+                raise ValueError(
+                    f"Pitches ({len(pitches)}) and durations ({len(durations)}) "
+                    "must have the same length"
+                )
 
             pitch_midi = pitch_sequence(pitches, durations, FRAME_RATE)
             f0_curve = midi_to_hz_curve(pitch_midi)
@@ -821,6 +828,24 @@ def __(
             stretch_durs = [
                 float(d.strip()) for d in custom_stretch_durations.value.split(",")
             ]
+            
+            # Validate array lengths for breakpoint curves
+            # breakpoint_curve expects len(durations) = len(values) - 1
+            if len(pitch_durs) != len(pitch_bps) - 1:
+                raise ValueError(
+                    f"Pitch durations ({len(pitch_durs)}) must be one less than "
+                    f"pitch values ({len(pitch_bps)})"
+                )
+            if len(pitch_durs) != len(loudness_bps) - 1:
+                raise ValueError(
+                    f"Pitch durations ({len(pitch_durs)}) must be one less than "
+                    f"loudness values ({len(loudness_bps)})"
+                )
+            if len(stretch_durs) != len(stretch_bps) - 1:
+                raise ValueError(
+                    f"Stretch durations ({len(stretch_durs)}) must be one less than "
+                    f"stretch values ({len(stretch_bps)})"
+                )
 
             pitch_midi = breakpoint_curve(pitch_bps, pitch_durs, "linear", FRAME_RATE)
             f0_curve = midi_to_hz_curve(pitch_midi)
