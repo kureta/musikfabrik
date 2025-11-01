@@ -112,7 +112,7 @@ def __(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
     if selected_file and selected_file != "No audio files found":
         try:
             audio_sample, _ = load_audio(selected_file, sr=SAMPLE_RATE)
-            mo.vstack(
+            audio_load_display = mo.vstack(
                 [
                     mo.md(f"**Loaded:** `{selected_file}`"),
                     mo.audio(src=audio_sample, rate=SAMPLE_RATE),
@@ -120,11 +120,13 @@ def __(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
             )
         except Exception as e:
             audio_sample = None
-            mo.md(f"**Error loading file:** {e}")
+            audio_load_display = mo.md(f"**Error loading file:** {e}")
     else:
         audio_sample = None
-        mo.md("**Please select or enter an audio file path**")
-    return audio_sample, selected_file
+        audio_load_display = mo.md("**Please select or enter an audio file path**")
+    
+    audio_load_display
+    return audio_load_display, audio_sample, selected_file
 
 
 @app.cell(hide_code=True)
@@ -249,7 +251,7 @@ def __(
                 synthesis += amp * np.sin(2 * np.pi * freq * time)
             synthesis /= np.abs(synthesis).max()
 
-            mo.vstack(
+            partials_display = mo.vstack(
                 [
                     mo.md(f"**F0:** {partials_data['f0']:.2f} Hz ({librosa.hz_to_note(partials_data['f0'])})"),
                     mo.md(f"**Partials found:** {len(freqs)}"),
@@ -260,10 +262,12 @@ def __(
             )
         except Exception as e:
             partials_data = None
-            mo.md(f"**Error extracting partials:** {e}")
+            partials_display = mo.md(f"**Error extracting partials:** {e}")
     else:
         partials_data = None
-        mo.md("**Load an audio file first**")
+        partials_display = mo.md("**Load an audio file first**")
+    
+    partials_display
     return (
         a,
         amps,
@@ -274,6 +278,7 @@ def __(
         freqs,
         i,
         partials_data,
+        partials_display,
         r,
         ratios,
         synthesis,
@@ -343,7 +348,7 @@ def __(
                 "hop_length": DDSP_HOP_LENGTH,
             }
 
-            mo.vstack(
+            dynamic_display = mo.vstack(
                 [
                     mo.md(
                         f"**Extracted {len(dynamic_f0)} frames** "
@@ -354,14 +359,17 @@ def __(
             )
         except Exception as e:
             dynamic_features = None
-            mo.md(f"**Error extracting dynamic features:** {e}")
+            dynamic_display = mo.md(f"**Error extracting dynamic features:** {e}")
     else:
         dynamic_features = None
-        mo.md("**Load an audio file first**")
+        dynamic_display = mo.md("**Load an audio file first**")
+    
+    dynamic_display
     return (
         DDSP_HOP_LENGTH,
         ax1,
         ax2,
+        dynamic_display,
         dynamic_f0,
         dynamic_features,
         dynamic_loudness,
@@ -479,7 +487,7 @@ def __(
                 sr=SAMPLE_RATE,
             )
 
-            mo.vstack(
+            stretch_display = mo.vstack(
                 [
                     mo.md("**Original vs. Stretched:**"),
                     mo.audio(src=audio_sample, rate=SAMPLE_RATE),
@@ -488,11 +496,13 @@ def __(
             )
         except Exception as e:
             stretched_audio = None
-            mo.md(f"**Error stretching audio:** {e}")
+            stretch_display = mo.md(f"**Error stretching audio:** {e}")
     else:
         stretched_audio = None
-        mo.md("**Load an audio file and extract dynamic features first**")
-    return f0_for_stretch, stretch_curve, stretched_audio
+        stretch_display = mo.md("**Load an audio file and extract dynamic features first**")
+    
+    stretch_display
+    return f0_for_stretch, stretch_curve, stretch_display, stretched_audio
 
 
 @app.cell(hide_code=True)
@@ -615,15 +625,18 @@ def __(
             messages.append(f"✗ Error saving stretched audio: {e}")
 
     if messages:
-        mo.vstack([mo.md(msg) for msg in messages])
+        save_display = mo.vstack([mo.md(msg) for msg in messages])
     else:
-        mo.md("_Click buttons above to save features_")
+        save_display = mo.md("_Click buttons above to save features_")
+    
+    save_display
     return (
         dynamic_dict,
         json_path,
         messages,
         partials_json,
         pickle_path,
+        save_display,
         save_path,
         wav_path,
     )

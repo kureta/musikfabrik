@@ -137,14 +137,16 @@ def __(checkpoint_files, get_harmonic_stretching_model, mo, model_selector):
                 ddsp_model = get_harmonic_stretching_model(
                     checkpoint_files[model_selector.value]
                 )
-            mo.md(f"✓ Loaded **{model_selector.value}** model")
+            model_load_display = mo.md(f"✓ Loaded **{model_selector.value}** model")
         except Exception as e:
             ddsp_model = None
-            mo.md(f"✗ Error loading model: {e}")
+            model_load_display = mo.md(f"✗ Error loading model: {e}")
     else:
         ddsp_model = None
-        mo.md("_Select a model_")
-    return (ddsp_model,)
+        model_load_display = mo.md("_Select a model_")
+    
+    model_load_display
+    return (ddsp_model, model_load_display)
 
 
 @app.cell(hide_code=True)
@@ -209,7 +211,7 @@ def __(
             f0_from_audio = get_dynamic_f0(audio_for_ddsp)
             loudness_from_audio = get_dynamic_loudness(audio_for_ddsp)
 
-            mo.vstack(
+            audio_load_display = mo.vstack(
                 [
                     mo.md(f"**Loaded:** `{selected_audio_file}`"),
                     mo.audio(src=audio_for_ddsp, rate=48000),
@@ -220,14 +222,17 @@ def __(
             audio_for_ddsp = None
             f0_from_audio = None
             loudness_from_audio = None
-            mo.md(f"**Error loading audio:** {e}")
+            audio_load_display = mo.md(f"**Error loading audio:** {e}")
     else:
         audio_for_ddsp = None
         f0_from_audio = None
         loudness_from_audio = None
-        mo.md("**Select or enter an audio file**")
+        audio_load_display = mo.md("**Select or enter an audio file**")
+    
+    audio_load_display
     return (
         audio_for_ddsp,
+        audio_load_display,
         f0_from_audio,
         loudness_from_audio,
         selected_audio_file,
@@ -323,7 +328,7 @@ def __(
                     stretch_curve_audio,
                 )
 
-            mo.vstack(
+            audio_driven_display = mo.vstack(
                 [
                     mo.md("**Audio-driven DDSP output:**"),
                     mo.audio(src=audio_driven_output, rate=48000),
@@ -331,12 +336,15 @@ def __(
             )
         except Exception as e:
             audio_driven_output = None
-            mo.md(f"**Error generating audio:** {e}")
+            audio_driven_display = mo.md(f"**Error generating audio:** {e}")
     else:
         audio_driven_output = None
-        mo.md("**Load model and audio file first**")
+        audio_driven_display = mo.md("**Load model and audio file first**")
+    
+    audio_driven_display
     return (
         attack_frames_audio,
+        audio_driven_display,
         audio_driven_output,
         n_frames_audio,
         release_frames_audio,
@@ -868,14 +876,16 @@ def __(
         stretch_curve_manual = stretch_curve_manual[:min_len]
 
         phrase_created = True
-        mo.md(f"✓ Created **{phrase_type.value}** phrase ({min_len} frames)")
+        phrase_create_display = mo.md(f"✓ Created **{phrase_type.value}** phrase ({min_len} frames)")
 
     except Exception as e:
         f0_curve = None
         loudness_curve = None
         stretch_curve_manual = None
         phrase_created = False
-        mo.md(f"✗ Error creating phrase: {e}")
+        phrase_create_display = mo.md(f"✗ Error creating phrase: {e}")
+    
+    phrase_create_display
     return (
         d,
         durations,
@@ -885,6 +895,7 @@ def __(
         loudness_curve,
         min_len,
         p,
+        phrase_create_display,
         pitch_bps,
         pitch_durs,
         pitch_midi,
@@ -924,7 +935,7 @@ def __(
                     stretch_curve_manual,
                 )
 
-            mo.vstack(
+            manual_phrase_display = mo.vstack(
                 [
                     mo.md("**Manual phrase DDSP output:**"),
                     mo.audio(src=manual_phrase_output, rate=48000),
@@ -932,14 +943,16 @@ def __(
             )
         except Exception as e:
             manual_phrase_output = None
-            mo.md(f"**Error generating phrase:** {e}")
+            manual_phrase_display = mo.md(f"**Error generating phrase:** {e}")
     else:
         manual_phrase_output = None
         if not ddsp_model:
-            mo.md("**Load a DDSP model first**")
+            manual_phrase_display = mo.md("**Load a DDSP model first**")
         else:
-            mo.md("**Create a phrase first**")
-    return (manual_phrase_output,)
+            manual_phrase_display = mo.md("**Create a phrase first**")
+    
+    manual_phrase_display
+    return (manual_phrase_display, manual_phrase_output)
 
 
 @app.cell(hide_code=True)
@@ -1013,10 +1026,12 @@ def __(
             output_messages.append(f"✗ Error saving manual phrase: {e}")
 
     if output_messages:
-        mo.vstack([mo.md(msg) for msg in output_messages])
+        save_audio_display = mo.vstack([mo.md(msg) for msg in output_messages])
     else:
-        mo.md("_Click buttons above to save audio_")
-    return audio_path, output_messages, output_path, phrase_path, timestamp
+        save_audio_display = mo.md("_Click buttons above to save audio_")
+    
+    save_audio_display
+    return audio_path, output_messages, output_path, phrase_path, save_audio_display, timestamp
 
 
 if __name__ == "__main__":
