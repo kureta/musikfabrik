@@ -373,3 +373,55 @@ def create_stretch_curve(
     release = np.linspace(peak_stretch, end_stretch, release_frames)
 
     return np.concatenate([attack, sustain, release])
+
+
+def synthesize_audio_from_partials(
+    frequencies: FloatArray,
+    amplitudes: FloatArray,
+    duration: float = 2.0,
+    sr: int = 48000,
+    fade_duration: float = 0.01,
+) -> FloatArray:
+    """Synthesize audio from partials using additive synthesis.
+
+    Args:
+        frequencies: Array of partial frequencies in Hz
+        amplitudes: Array of partial amplitudes (linear scale, not dB)
+        duration: Duration of the synthesized audio in seconds
+        sr: Sample rate
+        fade_duration: Duration of fade in/out in seconds to avoid clicks
+
+    Returns:
+        Synthesized audio samples
+    """
+    if len(frequencies) == 0 or len(amplitudes) == 0:
+        return np.zeros(int(duration * sr))
+    
+    if len(frequencies) != len(amplitudes):
+        raise ValueError("frequencies and amplitudes must have the same length")
+    
+    n_samples = int(duration * sr)
+    t = np.arange(n_samples) / sr
+    
+    # Initialize output
+    audio = np.zeros(n_samples)
+    
+    # Add each partial
+    for freq, amp in zip(frequencies, amplitudes):
+        if freq > 0 and amp > 0:  # Only add valid partials
+            audio += amp * np.sin(2 * np.pi * freq * t)
+    
+    # Normalize to prevent clipping
+    max_val = np.abs(audio).max()
+    if max_val > 0:
+        audio = audio / max_val * 0.95  # Leave some headroom
+    
+    # Apply fade in/out to avoid clicks
+    fade_samples = int(fade_duration * sr)
+    if fade_samples > 0 and fade_samples < n_samples // 2:
+        fade_in = np.linspace(0, 1, fade_samples)
+        fade_out = np.linspace(1, 0, fade_samples)
+        audio[:fade_samples] *= fade_in
+        audio[-fade_samples:] *= fade_out
+    
+    return audio

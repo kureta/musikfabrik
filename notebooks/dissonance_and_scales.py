@@ -25,6 +25,7 @@ def __():
     import numpy as np
     from matplotlib.figure import Figure
 
+    from musikfabrik.audio_features import synthesize_audio_from_partials
     from musikfabrik.dissonance_analysis import (
         calculate_dissonance_curve,
         calculate_dissonance_from_partials_dict,
@@ -49,6 +50,7 @@ def __():
         librosa,
         mo,
         np,
+        synthesize_audio_from_partials,
     )
 
 
@@ -581,6 +583,171 @@ def __(
     
     consonant_display
     return ax_diss, consonant_cents, consonant_display, consonant_peaks, fig_diss
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(
+        r"""
+    ## 3.5. Listen to Consonant Intervals
+
+    Generate audio to hear the consonant intervals over the base (fixed) sound.
+    """
+    )
+    return
+
+
+@app.cell
+def __(mo):
+    # Controls for audio generation
+    audio_duration_slider = mo.ui.slider(
+        start=0.5,
+        stop=5.0,
+        value=2.0,
+        step=0.5,
+        show_value=True,
+        label="Audio duration (seconds):",
+    )
+    
+    interval_gap_slider = mo.ui.slider(
+        start=0.0,
+        stop=1.0,
+        value=0.3,
+        step=0.1,
+        show_value=True,
+        label="Gap between intervals (seconds):",
+    )
+    
+    mo.vstack([
+        mo.md("**Audio Generation Settings:**"),
+        audio_duration_slider,
+        interval_gap_slider,
+    ])
+    return audio_duration_slider, interval_gap_slider
+
+
+@app.cell
+def __(mo):
+    generate_audio_button = mo.ui.button(
+        label="Generate Audio for Consonant Intervals",
+        kind="success",
+    )
+    generate_audio_button
+    return (generate_audio_button,)
+
+
+@app.cell
+def __(
+    audio_duration_slider,
+    base_f0,
+    consonant_cents,
+    fixed_amps,
+    fixed_partials,
+    generate_audio_button,
+    interval_gap_slider,
+    librosa,
+    mo,
+    np,
+    swept_amps,
+    swept_file_selector,
+    swept_loaded,
+    swept_partials,
+    swept_source,
+    synthesize_audio_from_partials,
+):
+    # Generate audio for each consonant interval
+    if (
+        generate_audio_button.value
+        and consonant_cents is not None
+        and len(consonant_cents) > 0
+        and fixed_partials is not None
+        and swept_partials is not None
+    ):
+        try:
+            duration = audio_duration_slider.value
+            gap = interval_gap_slider.value
+            sr = 48000
+            
+            audio_segments = []
+            
+            for interval_cents in consonant_cents:
+                # Generate base sound
+                base_audio = synthesize_audio_from_partials(
+                    fixed_partials,
+                    fixed_amps,
+                    duration=duration,
+                    sr=sr,
+                )
+                
+                # Transpose swept sound to the consonant interval
+                if swept_source.value == "Synthetic":
+                    # For synthetic, just transpose the frequencies
+                    ratio = 2 ** (interval_cents / 1200.0)
+                    swept_freq_transposed = swept_partials * ratio
+                    swept_audio = synthesize_audio_from_partials(
+                        swept_freq_transposed,
+                        swept_amps,
+                        duration=duration,
+                        sr=sr,
+                    )
+                else:
+                    # For loaded file, use librosa pitch shift
+                    # First synthesize at base f0, then pitch shift
+                    swept_audio_base = synthesize_audio_from_partials(
+                        swept_partials,
+                        swept_amps,
+                        duration=duration,
+                        sr=sr,
+                    )
+                    # Pitch shift by interval_cents
+                    n_steps = interval_cents / 100.0  # Convert cents to semitones
+                    swept_audio = librosa.effects.pitch_shift(
+                        swept_audio_base,
+                        sr=sr,
+                        n_steps=n_steps,
+                    )
+                
+                # Mix base and swept sounds
+                mixed_audio = base_audio + swept_audio
+                
+                # Normalize
+                max_val = np.abs(mixed_audio).max()
+                if max_val > 0:
+                    mixed_audio = mixed_audio / max_val * 0.95
+                
+                audio_segments.append(mixed_audio)
+                
+                # Add gap
+                if gap > 0:
+                    gap_samples = int(gap * sr)
+                    audio_segments.append(np.zeros(gap_samples))
+            
+            # Concatenate all segments
+            consonant_audio = np.concatenate(audio_segments)
+            
+            # Create display with all audio previews
+            audio_displays = [
+                mo.md(f"**Consonant Intervals Audio** ({len(consonant_cents)} intervals):"),
+                mo.md(", ".join([f"{int(np.round(c))} cents" for c in consonant_cents])),
+                mo.audio(src=consonant_audio, rate=sr),
+            ]
+            
+            consonant_audio_display = mo.vstack(audio_displays)
+            
+        except Exception as e:
+            consonant_audio = None
+            consonant_audio_display = mo.md(f"**Error generating audio:** {e}")
+    else:
+        consonant_audio = None
+        if not generate_audio_button.value:
+            consonant_audio_display = mo.md("_Click button above to generate audio_")
+        elif consonant_cents is None or len(consonant_cents) == 0:
+            consonant_audio_display = mo.md("**Find consonant intervals first**")
+        else:
+            consonant_audio_display = mo.md("**Define both base and swept sounds first**")
+    
+    consonant_audio_display
+    return consonant_audio, consonant_audio_display
 
 
 @app.cell(hide_code=True)
