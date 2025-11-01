@@ -17,6 +17,7 @@ app = marimo.App(width="medium")
 @app.cell(hide_code=True)
 def __():
     import pickle
+    from datetime import datetime
     from pathlib import Path
 
     import librosa
@@ -56,6 +57,7 @@ def __():
         adsr_envelope,
         breakpoint_curve,
         constant_curve,
+        datetime,
         generate_audio_with_ddsp,
         get_dynamic_f0,
         get_dynamic_loudness,
@@ -945,6 +947,7 @@ def __(mo):
 def __(
     Path,
     audio_driven_output,
+    datetime,
     manual_phrase_output,
     mo,
     output_dir,
@@ -961,8 +964,6 @@ def __(
             output_path.mkdir(parents=True, exist_ok=True)
 
             # Generate filename with timestamp
-            from datetime import datetime
-
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             audio_path = output_path / f"audio_driven_{timestamp}.wav"
 
@@ -976,8 +977,6 @@ def __(
             output_path = Path(output_dir.value)
             output_path.mkdir(parents=True, exist_ok=True)
 
-            from datetime import datetime
-
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             phrase_path = output_path / f"manual_phrase_{timestamp}.wav"
 
@@ -990,7 +989,7 @@ def __(
         mo.vstack([mo.md(msg) for msg in output_messages])
     else:
         mo.md("_Click buttons above to save audio_")
-    return audio_path, datetime, output_messages, output_path, phrase_path, timestamp
+    return audio_path, output_messages, output_path, phrase_path, timestamp
 
 
 @app.cell

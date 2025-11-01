@@ -19,6 +19,8 @@ FloatArray = NDArray[np.float64]
 # Constants
 SAMPLE_RATE = 48000
 FRAME_RATE = 250  # frames per second
+PAD_START_DURATION = 2.0  # seconds of padding at the start
+PAD_END_DURATION_MULTIPLIER = 4.0  # multiplier for end padding relative to start
 
 
 def generate_audio_with_ddsp(
@@ -282,6 +284,7 @@ def pad_curve(
     pad_duration: float,
     pad_value: float | None = None,
     fps: int = FRAME_RATE,
+    end_duration_multiplier: float = PAD_END_DURATION_MULTIPLIER,
 ) -> FloatArray:
     """Pad a curve with constant values at beginning and end.
 
@@ -290,6 +293,7 @@ def pad_curve(
         pad_duration: Duration of padding in seconds
         pad_value: Padding value (uses last value if None)
         fps: Frames per second
+        end_duration_multiplier: Multiplier for end padding duration
 
     Returns:
         Padded curve
@@ -298,7 +302,7 @@ def pad_curve(
         pad_value = curve[-1]
 
     start_pad = constant_curve(pad_duration, pad_value, fps)
-    end_pad = constant_curve(pad_duration * 4, pad_value, fps)
+    end_pad = constant_curve(pad_duration * end_duration_multiplier, pad_value, fps)
 
     return np.concatenate([start_pad, curve, end_pad])
 

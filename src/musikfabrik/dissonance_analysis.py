@@ -7,6 +7,8 @@ This module provides functions for:
 - Generating scales from consonant intervals
 """
 
+import itertools
+
 import librosa
 import numpy as np
 from numpy.typing import NDArray
@@ -207,6 +209,44 @@ def calculate_dissonance_from_partials_dict(
     )
 
 
+def _validate_scale(scale: list[int], intervals: list[list[int]]) -> bool:
+    """Check if scale satisfies interval constraints.
+    
+    Args:
+        scale: Scale to validate
+        intervals: List of interval groups
+        
+    Returns:
+        True if scale is valid, False otherwise
+    """
+    octave = intervals[7][0]
+    # Create extended scale for interval checking (avoid modifying input)
+    extended_scale = scale[:-1] + [scale[-1] + item for item in scale]
+
+    for interval in range(1, 8):
+        for idx in range(len(extended_scale) - interval):
+            distance = (extended_scale[idx + interval] - extended_scale[idx]) % octave
+
+            # Handle special cases for 4ths and 5ths
+            if interval == 3:
+                lower_limit = max(intervals[interval - 1])
+                upper_limit = min(intervals[interval + 1][1:])
+            elif interval == 4:
+                lower_limit = max(intervals[interval - 1][:-1])
+                upper_limit = min(intervals[interval + 1])
+            elif interval == 7:
+                if distance != 0:
+                    return False
+                return True
+            else:
+                lower_limit = max(intervals[interval - 1])
+                upper_limit = min(intervals[interval + 1])
+
+            if (distance <= lower_limit) or (distance >= upper_limit):
+                return False
+    return True
+
+
 def generate_scales_from_intervals(
     intervals: list[list[int]],
 ) -> list[list[int]]:
@@ -221,43 +261,13 @@ def generate_scales_from_intervals(
     Returns:
         List of valid scales
     """
-    import itertools
-
-    def validate(scale, intervals):
-        """Check if scale satisfies interval constraints."""
-        octave = intervals[7][0]
-        scale = scale[:-1] + [scale[-1] + item for item in scale]
-
-        for interval in range(1, 8):
-            for idx in range(len(scale) - interval):
-                distance = (scale[idx + interval] - scale[idx]) % octave
-
-                # Handle special cases for 4ths and 5ths
-                if interval == 3:
-                    lower_limit = max(intervals[interval - 1])
-                    upper_limit = min(intervals[interval + 1][1:])
-                elif interval == 4:
-                    lower_limit = max(intervals[interval - 1][:-1])
-                    upper_limit = min(intervals[interval + 1])
-                elif interval == 7:
-                    if distance != 0:
-                        return False
-                    return True
-                else:
-                    lower_limit = max(intervals[interval - 1])
-                    upper_limit = min(intervals[interval + 1])
-
-                if (distance <= lower_limit) or (distance >= upper_limit):
-                    return False
-        return True
-
     all_scales = itertools.product(*[i for i in intervals])
 
     valid_scales = []
     for scale in all_scales:
-        scale = list(scale)
-        if validate(scale, intervals):
-            valid_scales.append(scale)
+        scale_list = list(scale)
+        if _validate_scale(scale_list, intervals):
+            valid_scales.append(scale_list)
 
     # Remove duplicates
     unique_scales = [
