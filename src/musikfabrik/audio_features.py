@@ -40,7 +40,9 @@ def load_audio(
     """
     sample, sample_rate = librosa.load(file_path, sr=sr, mono=mono)
     if normalize:
-        sample = sample / np.abs(sample).max()
+        max_val = np.abs(sample).max()
+        if max_val > 0:
+            sample = sample / max_val
     return sample, sample_rate
 
 
@@ -75,7 +77,9 @@ def get_static_spectrum(
 
     # Normalize to [0, 1]
     amplitudes -= amplitudes.min()
-    amplitudes /= amplitudes.max()
+    max_val = amplitudes.max()
+    if max_val > 0:
+        amplitudes /= max_val
 
     return frequencies, amplitudes
 
@@ -310,6 +314,12 @@ def stretch_spectrum(
 
     for t in range(magnitude.shape[1]):
         F0 = f0[t]
+        # Skip frames with invalid F0
+        if F0 <= 0:
+            warped_spectrogram[:, t] = magnitude[:, t]
+            warped_phase[:, t] = phase[:, t]
+            continue
+            
         freqs_warped = F0 * (freqs / F0) ** stretch_factors[t]
 
         interp_func = interp1d(

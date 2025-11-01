@@ -237,7 +237,8 @@ def _validate_scale(scale: list[int], intervals: list[list[int]]) -> bool:
         raise ValueError(f"Expected 8 interval groups, got {len(intervals)}")
     
     octave = intervals[7][0]
-    # Create extended scale for interval checking (avoid modifying input)
+    # Create extended scale for interval checking across octave boundaries.
+    # This allows checking if intervals wrap correctly at the octave.
     extended_scale = scale[:-1] + [scale[-1] + item for item in scale]
 
     for interval in range(1, 8):
@@ -284,7 +285,7 @@ def generate_scales_from_intervals(
     Returns:
         List of valid scales
     """
-    all_scales = itertools.product(*[i for i in intervals])
+    all_scales = itertools.product(*intervals)
 
     valid_scales = []
     for scale in all_scales:

@@ -815,6 +815,8 @@ def __(
 
         elif phrase_type.value == "Custom Breakpoints":
             # Parse custom breakpoints
+            # Note: Breakpoint curves require N values and N-1 durations
+            # (one duration for each segment between consecutive values)
             pitch_bps = [float(p.strip()) for p in custom_pitches.value.split(",")]
             pitch_durs = [
                 float(d.strip()) for d in custom_pitch_durations.value.split(",")
@@ -830,21 +832,21 @@ def __(
             ]
             
             # Validate array lengths for breakpoint curves
-            # breakpoint_curve expects len(durations) = len(values) - 1
+            # breakpoint_curve interpolates between N values using N-1 segment durations
             if len(pitch_durs) != len(pitch_bps) - 1:
                 raise ValueError(
                     f"Pitch durations ({len(pitch_durs)}) must be one less than "
-                    f"pitch values ({len(pitch_bps)})"
+                    f"pitch values ({len(pitch_bps)}). Need {len(pitch_bps) - 1} durations."
                 )
             if len(pitch_durs) != len(loudness_bps) - 1:
                 raise ValueError(
                     f"Pitch durations ({len(pitch_durs)}) must be one less than "
-                    f"loudness values ({len(loudness_bps)})"
+                    f"loudness values ({len(loudness_bps)}). Need {len(loudness_bps) - 1} durations."
                 )
             if len(stretch_durs) != len(stretch_bps) - 1:
                 raise ValueError(
                     f"Stretch durations ({len(stretch_durs)}) must be one less than "
-                    f"stretch values ({len(stretch_bps)})"
+                    f"stretch values ({len(stretch_bps)}). Need {len(stretch_bps) - 1} durations."
                 )
 
             pitch_midi = breakpoint_curve(pitch_bps, pitch_durs, "linear", FRAME_RATE)
