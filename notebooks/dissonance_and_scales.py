@@ -16,7 +16,7 @@ app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def __():
+def _():
     import json
     from pathlib import Path
 
@@ -25,7 +25,10 @@ def __():
     import numpy as np
     from matplotlib.figure import Figure
 
-    from musikfabrik.audio_features import synthesize_audio_from_partials
+    from musikfabrik.audio_features import (
+        synthesize_audio_from_partials,
+        load_audio,
+    )
     from musikfabrik.dissonance_analysis import (
         calculate_dissonance_curve,
         calculate_dissonance_from_partials_dict,
@@ -35,19 +38,17 @@ def __():
         generate_synthetic_partials,
         get_all_modes,
     )
-
     return (
         Figure,
         Path,
         calculate_dissonance_curve,
-        calculate_dissonance_from_partials_dict,
-        calculate_synthetic_dissonance_curve,
         find_consonant_intervals,
         generate_scales_from_intervals,
         generate_synthetic_partials,
         get_all_modes,
         json,
         librosa,
+        load_audio,
         mo,
         np,
         synthesize_audio_from_partials,
@@ -55,13 +56,13 @@ def __():
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""# Dissonance Curves and Scale Generation""")
     return
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 1. Define Partials
@@ -73,13 +74,13 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Base (Fixed) Sound""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     fixed_source = mo.ui.radio(
         options=["Synthetic", "Load from file"],
         value="Synthetic",
@@ -90,7 +91,7 @@ def __(mo):
 
 
 @app.cell
-def __(Path, mo):
+def _(Path, mo):
     # File loader for fixed partials
     features_dir = Path("data/extracted_features")
     if features_dir.exists():
@@ -108,14 +109,16 @@ def __(Path, mo):
     )
 
     fixed_file_selector
-    return features_dir, fixed_file_selector, partial_files
+    return fixed_file_selector, partial_files
 
 
 @app.cell
-def __(librosa, mo, np):
+def _(librosa, mo, np):
     # Synthetic partials controls for fixed sound
     fixed_f0 = mo.ui.slider(
-        steps=np.logspace(np.log2(55.0), np.log2(880.0), num=100, base=2.0).tolist(),
+        steps=np.logspace(
+            np.log2(55.0), np.log2(880.0), num=100, base=2.0
+        ).tolist(),
         value=float(librosa.note_to_hz("C4")),
         show_value=True,
         label="F0 (Hz):",
@@ -156,16 +159,11 @@ def __(librosa, mo, np):
             fixed_decay,
         ]
     )
-    return (
-        fixed_decay,
-        fixed_f0,
-        fixed_n_partials,
-        fixed_stretch,
-    )
+    return fixed_decay, fixed_f0, fixed_n_partials, fixed_stretch
 
 
 @app.cell
-def __(
+def _(
     fixed_decay,
     fixed_f0,
     fixed_file_selector,
@@ -185,7 +183,9 @@ def __(
             stretch_factor=fixed_stretch.value,
             amp_decay_factor=fixed_decay.value,
         )
-        fixed_status = mo.md(f"**Generated synthetic partials** (F0={fixed_f0.value:.1f} Hz)")
+        fixed_status = mo.md(
+            f"**Generated synthetic partials** (F0={fixed_f0.value:.1f} Hz)"
+        )
     elif fixed_source.value == "Load from file" and fixed_file_selector.value:
         try:
             with open(fixed_file_selector.value, "r") as fixed_file_handle:
@@ -204,24 +204,19 @@ def __(
         fixed_partials = None
         fixed_amps = None
         fixed_status = mo.md("_Select a file to load base sound partials_")
-    
+
     fixed_status
-    return (
-        fixed_amps,
-        fixed_loaded,
-        fixed_partials,
-        fixed_status,
-    )
+    return fixed_amps, fixed_loaded, fixed_partials
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Swept Sound""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     swept_source = mo.ui.radio(
         options=["Synthetic", "Load from file"],
         value="Synthetic",
@@ -232,7 +227,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo, partial_files):
+def _(mo, partial_files):
     swept_file_selector = mo.ui.dropdown(
         options=partial_files if partial_files else ["No files found"],
         value=partial_files[0] if partial_files else None,
@@ -245,10 +240,10 @@ def __(mo, partial_files):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Synthetic partials controls for swept sound
     # Note: swept sound uses the same F0 as the fixed (base) sound
-    
+
     swept_n_partials = mo.ui.slider(
         start=2,
         stop=16,
@@ -284,15 +279,11 @@ def __(mo):
             swept_decay,
         ]
     )
-    return (
-        swept_decay,
-        swept_n_partials,
-        swept_stretch,
-    )
+    return swept_decay, swept_n_partials, swept_stretch
 
 
 @app.cell
-def __(
+def _(
     fixed_partials,
     generate_synthetic_partials,
     json,
@@ -306,10 +297,10 @@ def __(
 ):
     # Generate or load swept partials
     # Swept partials must have the same F0 as fixed partials for dissonance calculation
-    
+
     if fixed_partials is not None and len(fixed_partials) > 0:
         base_f0 = fixed_partials[0]  # F0 is the first partial
-        
+
         if swept_source.value == "Synthetic":
             swept_partials, swept_amps = generate_synthetic_partials(
                 f0=base_f0,
@@ -317,21 +308,23 @@ def __(
                 stretch_factor=swept_stretch.value,
                 amp_decay_factor=swept_decay.value,
             )
-            swept_status = mo.md(f"**Generated synthetic partials** (F0={base_f0:.1f} Hz, matching base sound)")
+            swept_status = mo.md(
+                f"**Generated synthetic partials** (F0={base_f0:.1f} Hz, matching base sound)"
+            )
         elif swept_source.value == "Load from file" and swept_file_selector.value:
             try:
                 with open(swept_file_selector.value, "r") as swept_file_handle:
                     swept_loaded = json.load(swept_file_handle)
-                
+
                 # Load original partials
                 swept_partials_orig = np.array(swept_loaded["frequencies"])
                 swept_amps = np.array(swept_loaded["amplitudes"])
-                swept_f0_orig = swept_loaded['f0']
-                
+                swept_f0_orig = swept_loaded["f0"]
+
                 # Transpose to match base_f0
                 transpose_ratio = base_f0 / swept_f0_orig
                 swept_partials = swept_partials_orig * transpose_ratio
-                
+
                 swept_status = mo.md(
                     f"**Loaded from:** `{swept_file_selector.value}`  \n"
                     f"**Original F0:** {swept_f0_orig:.2f} Hz → **Transposed to:** {base_f0:.2f} Hz  \n"
@@ -349,31 +342,25 @@ def __(
         swept_partials = None
         swept_amps = None
         swept_status = mo.md("_Define base (fixed) sound first_")
-    
+
     swept_status
-    return (
-        base_f0,
-        swept_amps,
-        swept_loaded,
-        swept_partials,
-        swept_status,
-    )
+    return base_f0, swept_amps, swept_f0_orig, swept_loaded, swept_partials
 
 
 @app.cell
-def __(fixed_amps, fixed_partials, swept_amps, swept_partials):
+def _(fixed_amps, fixed_partials, swept_amps, swept_partials):
     # Check if partials are defined
     partials_defined = (
-        fixed_partials is not None and 
-        fixed_amps is not None and 
-        swept_partials is not None and 
-        swept_amps is not None
+        fixed_partials is not None
+        and fixed_amps is not None
+        and swept_partials is not None
+        and swept_amps is not None
     )
     return (partials_defined,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 2. Calculate Dissonance Curve
@@ -385,12 +372,12 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Dissonance curve parameters
     start_cents = mo.ui.slider(
-        start=-300,
+        start=-800,
         stop=300,
-        value=-100,
+        value=-800,
         step=1,
         show_value=True,
         label="Start (cents):",
@@ -399,7 +386,7 @@ def __(mo):
     end_cents = mo.ui.slider(
         start=300,
         stop=2400,
-        value=1300,
+        value=800,
         step=1,
         show_value=True,
         label="End (cents):",
@@ -419,7 +406,7 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     calculate_dissonance_curve,
     cents_resolution,
     end_cents,
@@ -459,13 +446,13 @@ def __(
         roughness = None
         dissonance_calculated = False
         dissonance_status = mo.md("**Define partials first**")
-    
+
     dissonance_status
-    return cents_axis, dissonance_calculated, dissonance_status, roughness
+    return cents_axis, dissonance_calculated, roughness
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 3. Find Consonant Intervals
@@ -477,7 +464,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Consonant interval detection parameters
     deviation_slider = mo.ui.slider(
         start=0.0,
@@ -502,7 +489,7 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     Figure,
     cents_axis,
     deviation_slider,
@@ -563,7 +550,9 @@ def __(
 
             consonant_display = mo.vstack(
                 [
-                    mo.md(f"**Found {len(consonant_peaks)} consonant intervals:**"),
+                    mo.md(
+                        f"**Found {len(consonant_peaks)} consonant intervals:**"
+                    ),
                     mo.md(
                         ", ".join(
                             [f"{int(np.round(c))} cents" for c in consonant_cents]
@@ -575,18 +564,20 @@ def __(
         except Exception as e:
             consonant_peaks = None
             consonant_cents = None
-            consonant_display = mo.md(f"**Error finding consonant intervals:** {e}")
+            consonant_display = mo.md(
+                f"**Error finding consonant intervals:** {e}"
+            )
     else:
         consonant_peaks = None
         consonant_cents = None
         consonant_display = mo.md("**Calculate dissonance curve first**")
-    
+
     consonant_display
-    return ax_diss, consonant_cents, consonant_display, consonant_peaks, fig_diss
+    return (consonant_cents,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 3.5. Listen to Consonant Intervals
@@ -598,7 +589,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Controls for audio generation
     audio_duration_slider = mo.ui.slider(
         start=0.5,
@@ -608,7 +599,7 @@ def __(mo):
         show_value=True,
         label="Audio duration (seconds):",
     )
-    
+
     interval_gap_slider = mo.ui.slider(
         start=0.0,
         stop=1.0,
@@ -617,18 +608,20 @@ def __(mo):
         show_value=True,
         label="Gap between intervals (seconds):",
     )
-    
-    mo.vstack([
-        mo.md("**Audio Generation Settings:**"),
-        audio_duration_slider,
-        interval_gap_slider,
-    ])
+
+    mo.vstack(
+        [
+            mo.md("**Audio Generation Settings:**"),
+            audio_duration_slider,
+            interval_gap_slider,
+        ]
+    )
     return audio_duration_slider, interval_gap_slider
 
 
 @app.cell
-def __(mo):
-    generate_audio_button = mo.ui.button(
+def _(mo):
+    generate_audio_button = mo.ui.run_button(
         label="Generate Audio for Consonant Intervals",
         kind="success",
     )
@@ -637,19 +630,22 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     audio_duration_slider,
     base_f0,
     consonant_cents,
     fixed_amps,
+    fixed_loaded,
     fixed_partials,
+    fixed_source,
     generate_audio_button,
     interval_gap_slider,
     librosa,
+    load_audio,
     mo,
     np,
     swept_amps,
-    swept_file_selector,
+    swept_f0_orig,
     swept_loaded,
     swept_partials,
     swept_source,
@@ -667,18 +663,22 @@ def __(
             duration = audio_duration_slider.value
             gap = interval_gap_slider.value
             sr = 48000
-            
+
             audio_segments = []
-            
-            for interval_cents in consonant_cents:
-                # Generate base sound
+            # Generate base sound
+            if fixed_source.value == "Synthetic":
                 base_audio = synthesize_audio_from_partials(
                     fixed_partials,
                     fixed_amps,
                     duration=duration,
                     sr=sr,
                 )
-                
+            else:
+                base_audio = load_audio(fixed_loaded["source_file"], sr)[0][
+                    : int(duration * sr)
+                ]
+
+            for interval_cents in consonant_cents:
                 # Transpose swept sound to the consonant interval
                 if swept_source.value == "Synthetic":
                     # For synthetic, just transpose the frequencies
@@ -693,65 +693,78 @@ def __(
                 else:
                     # For loaded file, use librosa pitch shift
                     # First synthesize at base f0, then pitch shift
-                    swept_audio_base = synthesize_audio_from_partials(
-                        swept_partials,
-                        swept_amps,
-                        duration=duration,
+                    swept_audio_base = load_audio(swept_loaded["source_file"], sr)[
+                        0
+                    ][: int(duration * sr)]
+                    swept_audio_transposed = librosa.effects.pitch_shift(
+                        swept_audio_base,
                         sr=sr,
+                        n_steps=librosa.hz_to_midi(base_f0)
+                        - librosa.hz_to_midi(swept_f0_orig),
                     )
                     # Pitch shift by interval_cents
                     n_steps = interval_cents / 100.0  # Convert cents to semitones
                     swept_audio = librosa.effects.pitch_shift(
-                        swept_audio_base,
+                        swept_audio_transposed,
                         sr=sr,
                         n_steps=n_steps,
                     )
-                
+
                 # Mix base and swept sounds
                 mixed_audio = base_audio + swept_audio
-                
+
                 # Normalize
                 max_val = np.abs(mixed_audio).max()
                 if max_val > 0:
                     mixed_audio = mixed_audio / max_val * 0.95
-                
+
                 audio_segments.append(mixed_audio)
-                
+
                 # Add gap
                 if gap > 0:
                     gap_samples = int(gap * sr)
                     audio_segments.append(np.zeros(gap_samples))
-            
+
             # Concatenate all segments
             consonant_audio = np.concatenate(audio_segments)
-            
+
             # Create display with all audio previews
             audio_displays = [
-                mo.md(f"**Consonant Intervals Audio** ({len(consonant_cents)} intervals):"),
-                mo.md(", ".join([f"{int(np.round(c))} cents" for c in consonant_cents])),
+                mo.md(
+                    f"**Consonant Intervals Audio** ({len(consonant_cents)} intervals):"
+                ),
+                mo.md(
+                    ", ".join(
+                        [f"{int(np.round(c))} cents" for c in consonant_cents]
+                    )
+                ),
                 mo.audio(src=consonant_audio, rate=sr),
             ]
-            
+
             consonant_audio_display = mo.vstack(audio_displays)
-            
+
         except Exception as e:
             consonant_audio = None
             consonant_audio_display = mo.md(f"**Error generating audio:** {e}")
     else:
         consonant_audio = None
         if not generate_audio_button.value:
-            consonant_audio_display = mo.md("_Click button above to generate audio_")
+            consonant_audio_display = mo.md(
+                "_Click button above to generate audio_"
+            )
         elif consonant_cents is None or len(consonant_cents) == 0:
             consonant_audio_display = mo.md("**Find consonant intervals first**")
         else:
-            consonant_audio_display = mo.md("**Define both base and swept sounds first**")
-    
+            consonant_audio_display = mo.md(
+                "**Define both base and swept sounds first**"
+            )
+
     consonant_audio_display
-    return consonant_audio, consonant_audio_display
+    return
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 4. Generate Scales
@@ -763,7 +776,7 @@ def __(mo):
 
 
 @app.cell
-def __(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
+def _(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
     # Generate scales from consonant intervals
     if consonant_cents is not None and len(consonant_cents) > 0:
         try:
@@ -775,21 +788,35 @@ def __(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
             # Simplified: group by proximity to scale degrees
             intervals_grouped = [
                 [0],  # unison
-                list(consonant_cents[(consonant_cents > 0) & (consonant_cents < 250)]),
                 list(
-                    consonant_cents[(consonant_cents >= 250) & (consonant_cents < 400)]
+                    consonant_cents[
+                        (consonant_cents > 0) & (consonant_cents < 250)
+                    ]
                 ),
                 list(
-                    consonant_cents[(consonant_cents >= 400) & (consonant_cents < 600)]
+                    consonant_cents[
+                        (consonant_cents >= 250) & (consonant_cents < 400)
+                    ]
                 ),
                 list(
-                    consonant_cents[(consonant_cents >= 600) & (consonant_cents < 800)]
+                    consonant_cents[
+                        (consonant_cents >= 400) & (consonant_cents < 600)
+                    ]
                 ),
                 list(
-                    consonant_cents[(consonant_cents >= 800) & (consonant_cents < 1000)]
+                    consonant_cents[
+                        (consonant_cents >= 600) & (consonant_cents < 800)
+                    ]
                 ),
                 list(
-                    consonant_cents[(consonant_cents >= 1000) & (consonant_cents < 1200)]
+                    consonant_cents[
+                        (consonant_cents >= 800) & (consonant_cents < 1000)
+                    ]
+                ),
+                list(
+                    consonant_cents[
+                        (consonant_cents >= 1000) & (consonant_cents < 1200)
+                    ]
                 ),
                 [int(np.round(octave_approx))],  # octave
             ]
@@ -808,7 +835,9 @@ def __(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
                 scales_display = mo.vstack(
                     [
                         mo.md(f"**Generated {len(scales)} scales**"),
-                        mo.md(f"**Generated {len(modes)} modes (including rotations)**"),
+                        mo.md(
+                            f"**Generated {len(modes)} modes (including rotations)**"
+                        ),
                         mo.md("**Example scales:**"),
                         mo.md("\n\n".join([str(s) for s in scales[:5]])),
                     ]
@@ -830,13 +859,13 @@ def __(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
         modes = None
         intervals_grouped = None
         scales_display = mo.md("**Find consonant intervals first**")
-    
+
     scales_display
-    return group, intervals_grouped, modes, octave_approx, s, scales, scales_display
+    return intervals_grouped, modes, scales
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 5. Save Results
@@ -848,7 +877,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Save controls
     save_dir_scales = mo.ui.text(
         value="data/scales",
@@ -869,14 +898,13 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     Path,
     consonant_cents,
     intervals_grouped,
     json,
-    modes,
     mo,
-    np,
+    modes,
     save_dir_scales,
     save_name_scales,
     save_scales_btn,
@@ -917,9 +945,9 @@ def __(
         save_scales_display = mo.vstack([mo.md(msg) for msg in save_messages])
     else:
         save_scales_display = mo.md("_Click button above to save scales_")
-    
+
     save_scales_display
-    return data_to_save, json_path_scales, save_messages, save_path_scales, save_scales_display
+    return
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def __():
+def _():
     import json
     import pickle
     from pathlib import Path
@@ -40,6 +40,7 @@ def __():
     return (
         Figure,
         Path,
+        SAMPLE_RATE,
         create_stretch_curve,
         extract_partials,
         get_dynamic_f0,
@@ -56,13 +57,13 @@ def __():
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""# Audio Feature Extraction""")
     return
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 1. Load Audio File
@@ -74,7 +75,7 @@ def __(mo):
 
 
 @app.cell
-def __(Path, mo):
+def _(Path, mo):
     # File browser for selecting audio files
     data_path = Path("data/samples")
     if data_path.exists():
@@ -101,11 +102,11 @@ def __(Path, mo):
     )
 
     mo.vstack([file_input, file_selector])
-    return audio_files, data_path, file_input, file_selector
+    return file_input, file_selector
 
 
 @app.cell
-def __(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
+def _(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
     # Load the selected audio file
     selected_file = file_selector.value if file_selector.value else file_input.value
 
@@ -124,13 +125,13 @@ def __(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
     else:
         audio_sample = None
         audio_load_display = mo.md("**Please select or enter an audio file path**")
-    
+
     audio_load_display
-    return audio_load_display, audio_sample, selected_file
+    return audio_sample, selected_file
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 2. Extract Static Partials (FFT)
@@ -142,7 +143,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo, np):
+def _(mo, np):
     # UI controls for partial extraction
     n_partials_slider = mo.ui.slider(
         start=1,
@@ -178,16 +179,11 @@ def __(mo, np):
             mo.hstack([f0_estimate_slider, auto_detect_f0]),
         ]
     )
-    return (
-        auto_detect_f0,
-        f0_estimate_slider,
-        height_slider,
-        n_partials_slider,
-    )
+    return auto_detect_f0, f0_estimate_slider, height_slider, n_partials_slider
 
 
 @app.cell
-def __(
+def _(
     Figure,
     SAMPLE_RATE,
     audio_sample,
@@ -266,28 +262,13 @@ def __(
     else:
         partials_data = None
         partials_display = mo.md("**Load an audio file first**")
-    
+
     partials_display
-    return (
-        a,
-        amps,
-        ax,
-        f,
-        f0_est,
-        fig,
-        freqs,
-        i,
-        partials_data,
-        partials_display,
-        r,
-        ratios,
-        synthesis,
-        time,
-    )
+    return (partials_data,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 3. Extract Dynamic Features (STFT)
@@ -299,7 +280,7 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     Figure,
     SAMPLE_RATE,
     audio_sample,
@@ -310,7 +291,7 @@ def __(
     np,
 ):
     from performer.utils.constants import HOP_LENGTH as DDSP_HOP_LENGTH
-    
+
     # Extract dynamic features
     if audio_sample is not None:
         try:
@@ -363,24 +344,13 @@ def __(
     else:
         dynamic_features = None
         dynamic_display = mo.md("**Load an audio file first**")
-    
+
     dynamic_display
-    return (
-        DDSP_HOP_LENGTH,
-        ax1,
-        ax2,
-        dynamic_display,
-        dynamic_f0,
-        dynamic_features,
-        dynamic_loudness,
-        f0_midi,
-        fig_dynamic,
-        t,
-    )
+    return (dynamic_features,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 4. Spectral Stretching
@@ -392,7 +362,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # UI controls for stretching
     stretch_start = mo.ui.slider(
         start=0.8,
@@ -445,17 +415,22 @@ def __(mo):
             mo.hstack([attack_frames, release_frames]),
         ]
     )
-    return attack_frames, release_frames, stretch_end, stretch_peak, stretch_start
+    return (
+        attack_frames,
+        release_frames,
+        stretch_end,
+        stretch_peak,
+        stretch_start,
+    )
 
 
 @app.cell
-def __(
+def _(
     SAMPLE_RATE,
     attack_frames,
     audio_sample,
     create_stretch_curve,
     dynamic_features,
-    get_dynamic_f0,
     mo,
     release_frames,
     stretch_end,
@@ -500,13 +475,13 @@ def __(
     else:
         stretched_audio = None
         stretch_display = mo.md("**Load an audio file and extract dynamic features first**")
-    
+
     stretch_display
-    return f0_for_stretch, stretch_curve, stretch_display, stretched_audio
+    return (stretched_audio,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 5. Save Extracted Features
@@ -518,7 +493,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # UI for saving
     save_dir = mo.ui.text(
         value="data/extracted_features",
@@ -532,7 +507,7 @@ def __(mo):
         full_width=True,
     )
 
-    save_partials_btn = mo.ui.button(label="Save Partials (JSON)")
+    save_partials_btn = mo.ui.run_button(label="Save Partials (JSON)")
     save_dynamic_btn = mo.ui.button(label="Save Dynamic Features (Pickle)")
     save_stretched_btn = mo.ui.button(label="Save Stretched Audio (WAV)")
 
@@ -553,7 +528,7 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     Path,
     dynamic_features,
     json,
@@ -628,18 +603,9 @@ def __(
         save_display = mo.vstack([mo.md(msg) for msg in messages])
     else:
         save_display = mo.md("_Click buttons above to save features_")
-    
+
     save_display
-    return (
-        dynamic_dict,
-        json_path,
-        messages,
-        partials_json,
-        pickle_path,
-        save_display,
-        save_path,
-        wav_path,
-    )
+    return
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ app = marimo.App(width="medium")
 
 
 @app.cell(hide_code=True)
-def __():
+def _():
     import pickle
     from datetime import datetime
     from pathlib import Path
@@ -50,11 +50,8 @@ def __():
     SAMPLE_RATE = 48000
     FRAME_RATE = 250
     return (
-        DDSPPhrase,
-        Figure,
         FRAME_RATE,
         Path,
-        adsr_envelope,
         breakpoint_curve,
         constant_curve,
         datetime,
@@ -63,29 +60,24 @@ def __():
         get_dynamic_loudness,
         get_harmonic_stretching_model,
         glissando,
-        librosa,
-        linear_curve,
         load_audio,
         midi_to_hz_curve,
         mo,
         np,
-        pickle,
         pitch_sequence,
         sf,
-        stretch_spectrum,
-        torch,
         vibrato,
     )
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""# Composition Workspace""")
     return
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 1. Load DDSP Model
@@ -97,23 +89,13 @@ def __(mo):
 
 
 @app.cell
-def __(Path, mo):
+def _(Path, mo):
     # Find available checkpoints
     checkpoints_dir = Path("data/checkpoints")
     if checkpoints_dir.exists():
-        checkpoint_files = {
-            p.stem: str(p) for p in checkpoints_dir.glob("*.ckpt")
-        }
+        checkpoint_files = {p.stem: str(p) for p in checkpoints_dir.glob("*.ckpt")}
     else:
         checkpoint_files = {}
-
-    if not checkpoint_files:
-        checkpoint_files = {
-            "Drums": "data/checkpoints/drums_baseline.ckpt",
-            "Violin": "data/checkpoints/violin_longrun.ckpt",
-            "Cello": "data/checkpoints/cello_longrun.ckpt",
-            "Flute": "data/checkpoints/flute_longrun.ckpt",
-        }
 
     model_selector = mo.ui.dropdown(
         options=list(checkpoint_files.keys()),
@@ -123,11 +105,11 @@ def __(Path, mo):
     )
 
     model_selector
-    return checkpoint_files, checkpoints_dir, model_selector
+    return checkpoint_files, model_selector
 
 
 @app.cell
-def __(checkpoint_files, get_harmonic_stretching_model, mo, model_selector):
+def _(checkpoint_files, get_harmonic_stretching_model, mo, model_selector):
     # Load the selected model
     if model_selector.value:
         try:
@@ -137,20 +119,22 @@ def __(checkpoint_files, get_harmonic_stretching_model, mo, model_selector):
                 ddsp_model = get_harmonic_stretching_model(
                     checkpoint_files[model_selector.value]
                 )
-            model_load_display = mo.md(f"✓ Loaded **{model_selector.value}** model")
+            model_load_display = mo.md(
+                f"✓ Loaded **{model_selector.value}** model"
+            )
         except Exception as e:
             ddsp_model = None
             model_load_display = mo.md(f"✗ Error loading model: {e}")
     else:
         ddsp_model = None
         model_load_display = mo.md("_Select a model_")
-    
+
     model_load_display
-    return (ddsp_model, model_load_display)
+    return (ddsp_model,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 2. Audio-Driven DDSP Control
@@ -162,7 +146,7 @@ def __(mo):
 
 
 @app.cell
-def __(Path, mo):
+def _(Path, mo):
     # File selection for audio-driven control
     samples_dir = Path("data/samples")
     if samples_dir.exists():
@@ -186,11 +170,11 @@ def __(Path, mo):
     )
 
     mo.vstack([audio_file_input, audio_file_selector])
-    return audio_file_input, audio_file_selector, audio_files_ddsp, samples_dir
+    return audio_file_input, audio_file_selector
 
 
 @app.cell
-def __(
+def _(
     audio_file_input,
     audio_file_selector,
     get_dynamic_f0,
@@ -208,9 +192,10 @@ def __(
     if selected_audio_file and selected_audio_file != "No audio files found":
         try:
             audio_for_ddsp, _ = load_audio(selected_audio_file)
-            f0_from_audio = get_dynamic_f0(audio_for_ddsp)
-            loudness_from_audio = get_dynamic_loudness(audio_for_ddsp)
-
+            f0_from_audio = get_dynamic_f0(audio_for_ddsp).astype("float32")
+            loudness_from_audio = get_dynamic_loudness(audio_for_ddsp).astype(
+                "float32"
+            )
             audio_load_display = mo.vstack(
                 [
                     mo.md(f"**Loaded:** `{selected_audio_file}`"),
@@ -228,25 +213,19 @@ def __(
         f0_from_audio = None
         loudness_from_audio = None
         audio_load_display = mo.md("**Select or enter an audio file**")
-    
+
     audio_load_display
-    return (
-        audio_for_ddsp,
-        audio_load_display,
-        f0_from_audio,
-        loudness_from_audio,
-        selected_audio_file,
-    )
+    return f0_from_audio, loudness_from_audio
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Spectral Stretch Control for Audio-Driven Mode""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Stretch factor control for audio-driven mode
     audio_stretch_start = mo.ui.slider(
         start=0.8,
@@ -280,21 +259,23 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     audio_stretch_end,
     audio_stretch_peak,
     audio_stretch_start,
-    constant_curve,
     ddsp_model,
     f0_from_audio,
     generate_audio_with_ddsp,
-    linear_curve,
     loudness_from_audio,
     mo,
     np,
 ):
     # Generate audio from loaded features
-    if ddsp_model and f0_from_audio is not None and loudness_from_audio is not None:
+    if (
+        ddsp_model
+        and f0_from_audio is not None
+        and loudness_from_audio is not None
+    ):
         try:
             # Create stretch curve for audio-driven mode
             n_frames_audio = len(f0_from_audio)
@@ -340,21 +321,13 @@ def __(
     else:
         audio_driven_output = None
         audio_driven_display = mo.md("**Load model and audio file first**")
-    
+
     audio_driven_display
-    return (
-        attack_frames_audio,
-        audio_driven_display,
-        audio_driven_output,
-        n_frames_audio,
-        release_frames_audio,
-        stretch_curve_audio,
-        sustain_frames_audio,
-    )
+    return (audio_driven_output,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 3. Manual DDSP Phrase Composition
@@ -366,13 +339,13 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Phrase Type Selection""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     phrase_type = mo.ui.radio(
         options=[
             "Simple Note",
@@ -389,13 +362,13 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Simple Note Parameters""")
     return
 
 
 @app.cell
-def __(librosa, mo, np):
+def _(mo, np):
     # Simple note controls
     note_pitch = mo.ui.slider(
         steps=np.arange(36, 84, 0.01).tolist(),
@@ -436,7 +409,7 @@ def __(librosa, mo, np):
             mo.hstack(
                 [
                     note_pitch,
-                    mo.md(f"({librosa.midi_to_note(int(note_pitch.value))})"),
+                    # mo.md(f"({librosa.midi_to_note(int(note_pitch.value))})"),
                 ]
             ),
             note_duration,
@@ -448,13 +421,13 @@ def __(librosa, mo, np):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Note Sequence Parameters""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Note sequence controls
     sequence_pitches = mo.ui.text(
         value="60, 62, 64, 65, 67, 69, 71, 72",
@@ -503,13 +476,13 @@ def __(mo):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Glissando Parameters""")
     return
 
 
 @app.cell
-def __(mo, np):
+def _(mo, np):
     # Glissando controls
     gliss_start_pitch = mo.ui.slider(
         steps=np.arange(36, 84, 0.01).tolist(),
@@ -578,13 +551,13 @@ def __(mo, np):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Vibrato Parameters""")
     return
 
 
 @app.cell
-def __(mo, np):
+def _(mo, np):
     # Vibrato controls
     vibr_center_pitch = mo.ui.slider(
         steps=np.arange(36, 84, 0.01).tolist(),
@@ -658,13 +631,13 @@ def __(mo, np):
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Custom Breakpoints""")
     return
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Custom breakpoint controls
     custom_pitches = mo.ui.text(
         value="60, 64, 62, 67, 65, 60",
@@ -715,7 +688,7 @@ def __(mo):
 
 
 @app.cell
-def __(
+def _(
     FRAME_RATE,
     breakpoint_curve,
     constant_curve,
@@ -737,7 +710,6 @@ def __(
     note_loudness,
     note_pitch,
     note_stretch,
-    np,
     phrase_type,
     pitch_sequence,
     sequence_durations,
@@ -756,7 +728,9 @@ def __(
     try:
         if phrase_type.value == "Simple Note":
             # Simple sustained note
-            pitch_midi = constant_curve(note_duration.value, note_pitch.value, FRAME_RATE)
+            pitch_midi = constant_curve(
+                note_duration.value, note_pitch.value, FRAME_RATE
+            )
             f0_curve = midi_to_hz_curve(pitch_midi)
             loudness_curve = constant_curve(
                 note_duration.value, note_loudness.value, FRAME_RATE
@@ -771,7 +745,7 @@ def __(
             durations = [
                 float(d.strip()) for d in sequence_durations.value.split(",")
             ]
-            
+
             # Validate array lengths
             if len(pitches) != len(durations):
                 raise ValueError(
@@ -838,7 +812,7 @@ def __(
             stretch_durs = [
                 float(d.strip()) for d in custom_stretch_durations.value.split(",")
             ]
-            
+
             # Validate array lengths for breakpoint curves
             # breakpoint_curve interpolates between N values using N-1 segment durations
             if len(pitch_durs) != len(pitch_bps) - 1:
@@ -857,7 +831,9 @@ def __(
                     f"stretch values ({len(stretch_bps)}). Need {len(stretch_bps) - 1} durations."
                 )
 
-            pitch_midi = breakpoint_curve(pitch_bps, pitch_durs, "linear", FRAME_RATE)
+            pitch_midi = breakpoint_curve(
+                pitch_bps, pitch_durs, "linear", FRAME_RATE
+            )
             f0_curve = midi_to_hz_curve(pitch_midi)
             loudness_curve = breakpoint_curve(
                 loudness_bps, pitch_durs, "linear", FRAME_RATE
@@ -870,13 +846,17 @@ def __(
             raise ValueError(f"Unknown phrase type: {phrase_type.value}")
 
         # Ensure all curves have the same length
-        min_len = min(len(f0_curve), len(loudness_curve), len(stretch_curve_manual))
+        min_len = min(
+            len(f0_curve), len(loudness_curve), len(stretch_curve_manual)
+        )
         f0_curve = f0_curve[:min_len]
         loudness_curve = loudness_curve[:min_len]
         stretch_curve_manual = stretch_curve_manual[:min_len]
 
         phrase_created = True
-        phrase_create_display = mo.md(f"✓ Created **{phrase_type.value}** phrase ({min_len} frames)")
+        phrase_create_display = mo.md(
+            f"✓ Created **{phrase_type.value}** phrase ({min_len} frames)"
+        )
 
     except Exception as e:
         f0_curve = None
@@ -884,38 +864,19 @@ def __(
         stretch_curve_manual = None
         phrase_created = False
         phrase_create_display = mo.md(f"✗ Error creating phrase: {e}")
-    
+
     phrase_create_display
-    return (
-        d,
-        durations,
-        f0_curve,
-        l,
-        loudness_bps,
-        loudness_curve,
-        min_len,
-        p,
-        phrase_create_display,
-        pitch_bps,
-        pitch_durs,
-        pitch_midi,
-        pitches,
-        phrase_created,
-        stretch_bps,
-        stretch_curve_manual,
-        stretch_durs,
-        total_dur,
-    )
+    return f0_curve, loudness_curve, phrase_created, stretch_curve_manual
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(r"""### Generate Audio from Phrase""")
     return
 
 
 @app.cell
-def __(
+def _(
     ddsp_model,
     f0_curve,
     generate_audio_with_ddsp,
@@ -950,13 +911,13 @@ def __(
             manual_phrase_display = mo.md("**Load a DDSP model first**")
         else:
             manual_phrase_display = mo.md("**Create a phrase first**")
-    
+
     manual_phrase_display
-    return (manual_phrase_display, manual_phrase_output)
+    return (manual_phrase_output,)
 
 
 @app.cell(hide_code=True)
-def __(mo):
+def _(mo):
     mo.md(
         r"""
     ## 4. Save Generated Audio
@@ -968,7 +929,7 @@ def __(mo):
 
 
 @app.cell
-def __(mo):
+def _(mo):
     # Save controls
     output_dir = mo.ui.text(
         value="data/generated_audio",
@@ -976,15 +937,17 @@ def __(mo):
         full_width=True,
     )
 
-    save_audio_driven_btn = mo.ui.button(label="Save Audio-Driven Output")
-    save_manual_phrase_btn = mo.ui.button(label="Save Manual Phrase Output")
+    save_audio_driven_btn = mo.ui.run_button(label="Save Audio-Driven Output")
+    save_manual_phrase_btn = mo.ui.run_button(label="Save Manual Phrase Output")
 
-    mo.vstack([output_dir, mo.hstack([save_audio_driven_btn, save_manual_phrase_btn])])
+    mo.vstack(
+        [output_dir, mo.hstack([save_audio_driven_btn, save_manual_phrase_btn])]
+    )
     return output_dir, save_audio_driven_btn, save_manual_phrase_btn
 
 
 @app.cell
-def __(
+def _(
     Path,
     audio_driven_output,
     datetime,
@@ -1019,9 +982,10 @@ def __(
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             phrase_path = output_path / f"manual_phrase_{timestamp}.wav"
-
-            sf.write(phrase_path, manual_phrase_output, 48000)
-            output_messages.append(f"✓ Saved manual phrase output to {phrase_path}")
+            sf.write(phrase_path, manual_phrase_output.T, 48000)
+            output_messages.append(
+                f"✓ Saved manual phrase output to {phrase_path}"
+            )
         except Exception as e:
             output_messages.append(f"✗ Error saving manual phrase: {e}")
 
@@ -1029,9 +993,14 @@ def __(
         save_audio_display = mo.vstack([mo.md(msg) for msg in output_messages])
     else:
         save_audio_display = mo.md("_Click buttons above to save audio_")
-    
+
     save_audio_display
-    return audio_path, output_messages, output_path, phrase_path, save_audio_display, timestamp
+    return
+
+
+@app.cell
+def _():
+    return
 
 
 if __name__ == "__main__":

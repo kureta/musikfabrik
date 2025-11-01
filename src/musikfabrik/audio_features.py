@@ -231,7 +231,7 @@ def get_dynamic_f0(
     Returns:
         Array of f0 values over time
     """
-    from performer.utils.constants import SAMPLE_RATE, N_FFT, HOP_LENGTH
+    from performer.utils.constants import HOP_LENGTH, N_FFT, SAMPLE_RATE
     
     if fmin is None:
         fmin = float(librosa.note_to_hz("C2"))
@@ -264,10 +264,11 @@ def get_dynamic_loudness(
     Returns:
         Array of loudness values (in dB) over time
     """
-    from performer.utils.constants import SAMPLE_RATE, N_FFT, HOP_LENGTH
-    
+    from performer.utils.constants import HOP_LENGTH, N_FFT, SAMPLE_RATE
+
     # Use the Loudness class which already uses DDSP constants
     loudness_detector = Loudness()
+    loudness_detector.a_weighting = loudness_detector.a_weighting[:, 1:]
 
     with torch.no_grad():
         loudness = (
