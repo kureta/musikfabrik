@@ -231,11 +231,11 @@ def __(
             ax.grid(True, alpha=0.3)
 
             # Add frequency labels
-            for i, (r, a, f) in enumerate(zip(ratios, amps, freqs)):
+            for i, (r, a, freq_val) in enumerate(zip(ratios, amps, freqs)):
                 ax.text(
                     r,
                     a,
-                    f"{f:.1f}Hz",
+                    f"{freq_val:.1f}Hz",
                     ha="center",
                     va="bottom",
                     fontsize=8,
@@ -245,8 +245,8 @@ def __(
             # Create additive synthesis for comparison
             time = np.linspace(0.0, 3.0, num=SAMPLE_RATE * 3)
             synthesis = np.zeros_like(time)
-            for f, a in zip(freqs, amps):
-                synthesis += a * np.sin(2 * np.pi * f * time)
+            for freq, amp in zip(freqs, amps):
+                synthesis += amp * np.sin(2 * np.pi * freq * time)
             synthesis /= np.abs(synthesis).max()
 
             mo.vstack(
@@ -576,8 +576,8 @@ def __(
             }
 
             json_path = save_path / f"{save_name.value}_partials.json"
-            with open(json_path, "w") as f:
-                json.dump(partials_json, f, indent=2)
+            with open(json_path, "w") as json_file:
+                json.dump(partials_json, json_file, indent=2)
 
             messages.append(f"✓ Saved partials to {json_path}")
         except Exception as e:
@@ -594,8 +594,8 @@ def __(
             }
 
             pickle_path = save_path / f"{save_name.value}_dynamic.pkl"
-            with open(pickle_path, "wb") as f:
-                pickle.dump(dynamic_dict, f)
+            with open(pickle_path, "wb") as file_handle:
+                pickle.dump(dynamic_dict, file_handle)
 
             messages.append(f"✓ Saved dynamic features to {pickle_path}")
         except Exception as e:
@@ -626,11 +626,6 @@ def __(
         save_path,
         wav_path,
     )
-
-
-@app.cell
-def __():
-    return
 
 
 if __name__ == "__main__":

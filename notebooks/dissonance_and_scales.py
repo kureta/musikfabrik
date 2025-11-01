@@ -154,51 +154,6 @@ def __(librosa, mo, np):
     )
 
 
-@app.cell
-def __(
-    decay_factor,
-    f0_slider,
-    generate_synthetic_partials,
-    n_partials_synth,
-    partial_source,
-    stretch_1,
-    stretch_2,
-    use_dbs,
-):
-    # Generate synthetic partials
-    if partial_source.value == "Synthetic":
-        fixed_partials, fixed_amps = generate_synthetic_partials(
-            f0=f0_slider.value,
-            n_partials=n_partials_synth.value,
-            stretch_factor=stretch_1.value,
-            amp_decay_factor=decay_factor.value,
-            in_dbs=use_dbs.value,
-        )
-
-        swept_partials, swept_amps = generate_synthetic_partials(
-            f0=f0_slider.value,
-            n_partials=n_partials_synth.value,
-            stretch_factor=stretch_2.value,
-            amp_decay_factor=decay_factor.value,
-            in_dbs=use_dbs.value,
-        )
-
-        partials_defined = True
-    else:
-        fixed_partials = None
-        fixed_amps = None
-        swept_partials = None
-        swept_amps = None
-        partials_defined = False
-    return (
-        fixed_amps,
-        fixed_partials,
-        partials_defined,
-        swept_amps,
-        swept_partials,
-    )
-
-
 @app.cell(hide_code=True)
 def __(mo):
     mo.md(r"""### Load Partials from File""")
@@ -229,21 +184,45 @@ def __(Path, mo):
 
 @app.cell
 def __(
-    fixed_amps,
-    fixed_partials,
+    decay_factor,
+    f0_slider,
+    generate_synthetic_partials,
     json,
     mo,
+    n_partials_synth,
     np,
     partial_source,
     partials_file_selector,
-    swept_amps,
-    swept_partials,
+    stretch_1,
+    stretch_2,
+    use_dbs,
 ):
-    # Load partials from file
-    if partial_source.value == "Load from file" and partials_file_selector.value:
+    # Generate or load partials based on source
+    if partial_source.value == "Synthetic":
+        # Generate synthetic partials
+        fixed_partials, fixed_amps = generate_synthetic_partials(
+            f0=f0_slider.value,
+            n_partials=n_partials_synth.value,
+            stretch_factor=stretch_1.value,
+            amp_decay_factor=decay_factor.value,
+            in_dbs=use_dbs.value,
+        )
+
+        swept_partials, swept_amps = generate_synthetic_partials(
+            f0=f0_slider.value,
+            n_partials=n_partials_synth.value,
+            stretch_factor=stretch_2.value,
+            amp_decay_factor=decay_factor.value,
+            in_dbs=use_dbs.value,
+        )
+
+        partials_defined = True
+        loaded_partials = None
+    elif partial_source.value == "Load from file" and partials_file_selector.value:
+        # Load partials from file
         try:
-            with open(partials_file_selector.value, "r") as f:
-                loaded_partials = json.load(f)
+            with open(partials_file_selector.value, "r") as file_handle:
+                loaded_partials = json.load(file_handle)
 
             # Use loaded partials for both fixed and swept
             fixed_partials = np.array(loaded_partials["frequencies"])
@@ -251,18 +230,46 @@ def __(
             swept_partials = fixed_partials.copy()
             swept_amps = fixed_amps.copy()
             partials_defined = True
+        except Exception as e:
+            fixed_partials = None
+            fixed_amps = None
+            swept_partials = None
+            swept_amps = None
+            partials_defined = False
+            loaded_partials = None
+    else:
+        fixed_partials = None
+        fixed_amps = None
+        swept_partials = None
+        swept_amps = None
+        partials_defined = False
+        loaded_partials = None
+    
+    return (
+        fixed_amps,
+        fixed_partials,
+        loaded_partials,
+        partials_defined,
+        swept_amps,
+        swept_partials,
+    )
 
+
+@app.cell
+def __(fixed_partials, loaded_partials, mo, partial_source, partials_file_selector):
+    # Display loaded partials info
+    if partial_source.value == "Load from file" and partials_file_selector.value:
+        if loaded_partials is not None:
             mo.md(
                 f"**Loaded partials from:** `{partials_file_selector.value}`\n\n"
                 f"**F0:** {loaded_partials['f0']:.2f} Hz, "
                 f"**Partials:** {len(fixed_partials)}"
             )
-        except Exception as e:
-            mo.md(f"**Error loading partials:** {e}")
+        else:
+            mo.md("**Error loading partials**")
     else:
-        loaded_partials = None
         mo.md("_Select a file to load partials_")
-    return (loaded_partials,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -640,11 +647,6 @@ def __(
     else:
         mo.md("_Click button above to save scales_")
     return data_to_save, json_path_scales, save_messages, save_path_scales
-
-
-@app.cell
-def __():
-    return
 
 
 if __name__ == "__main__":

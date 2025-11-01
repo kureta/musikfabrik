@@ -1019,10 +1019,5 @@ def __(
     return audio_path, output_messages, output_path, phrase_path, timestamp
 
 
-@app.cell
-def __():
-    return
-
-
 if __name__ == "__main__":
     app.run()
