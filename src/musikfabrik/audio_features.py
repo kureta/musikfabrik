@@ -215,25 +215,24 @@ def extract_partials(
 
 def get_dynamic_f0(
     sample: FloatArray,
-    sr: int = 48000,
-    n_fft: int = 8192,
-    hop_length: int = 512,
     fmin: float | None = None,
     fmax: float | None = None,
 ) -> FloatArray:
     """Extract time-varying fundamental frequency using YIN algorithm.
+    
+    Uses DDSP-specific parameters (SAMPLE_RATE=48000, N_FFT=3072, HOP_LENGTH=192)
+    to ensure compatibility with DDSP models.
 
     Args:
-        sample: Audio samples
-        sr: Sample rate
-        n_fft: FFT size
-        hop_length: Hop length for STFT
+        sample: Audio samples (must be at 48kHz sample rate)
         fmin: Minimum f0 to detect (default: C2)
         fmax: Maximum f0 to detect (default: C7)
 
     Returns:
         Array of f0 values over time
     """
+    from performer.utils.constants import SAMPLE_RATE, N_FFT, HOP_LENGTH
+    
     if fmin is None:
         fmin = float(librosa.note_to_hz("C2"))
     if fmax is None:
@@ -243,9 +242,9 @@ def get_dynamic_f0(
         sample,
         fmin=fmin,
         fmax=fmax,
-        sr=sr,
-        frame_length=n_fft,
-        hop_length=hop_length,
+        sr=SAMPLE_RATE,
+        frame_length=N_FFT,
+        hop_length=HOP_LENGTH,
     )
 
     return f0
@@ -253,21 +252,21 @@ def get_dynamic_f0(
 
 def get_dynamic_loudness(
     sample: FloatArray,
-    sr: int = 48000,
-    n_fft: int = 8192,
-    hop_length: int = 512,
 ) -> FloatArray:
     """Extract time-varying loudness using A-weighted STFT.
+    
+    Uses DDSP-specific parameters (SAMPLE_RATE=48000, N_FFT=3072, HOP_LENGTH=192)
+    to ensure compatibility with DDSP models.
 
     Args:
-        sample: Audio samples
-        sr: Sample rate
-        n_fft: FFT size
-        hop_length: Hop length for STFT
+        sample: Audio samples (must be at 48kHz sample rate)
 
     Returns:
         Array of loudness values (in dB) over time
     """
+    from performer.utils.constants import SAMPLE_RATE, N_FFT, HOP_LENGTH
+    
+    # Use the Loudness class which already uses DDSP constants
     loudness_detector = Loudness()
 
     with torch.no_grad():

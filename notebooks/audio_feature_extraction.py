@@ -304,19 +304,20 @@ def __(
     mo,
     np,
 ):
+    from performer.utils.constants import HOP_LENGTH as DDSP_HOP_LENGTH
+    
     # Extract dynamic features
     if audio_sample is not None:
         try:
-            dynamic_f0 = get_dynamic_f0(audio_sample, sr=SAMPLE_RATE)
-            dynamic_loudness = get_dynamic_loudness(audio_sample, sr=SAMPLE_RATE)
+            dynamic_f0 = get_dynamic_f0(audio_sample)
+            dynamic_loudness = get_dynamic_loudness(audio_sample)
 
             # Visualize
             fig_dynamic = Figure(figsize=(12, 6), dpi=150)
             ax1 = fig_dynamic.add_subplot(211)
             ax2 = fig_dynamic.add_subplot(212, sharex=ax1)
 
-            hop_length = 512
-            t = np.arange(len(dynamic_f0)) * hop_length / SAMPLE_RATE
+            t = np.arange(len(dynamic_f0)) * DDSP_HOP_LENGTH / SAMPLE_RATE
 
             # F0 plot
             f0_midi = librosa.hz_to_midi(dynamic_f0)
@@ -339,14 +340,14 @@ def __(
                 "f0": dynamic_f0,
                 "loudness": dynamic_loudness,
                 "sample_rate": SAMPLE_RATE,
-                "hop_length": hop_length,
+                "hop_length": DDSP_HOP_LENGTH,
             }
 
             mo.vstack(
                 [
                     mo.md(
                         f"**Extracted {len(dynamic_f0)} frames** "
-                        f"({len(dynamic_f0) * hop_length / SAMPLE_RATE:.2f} seconds)"
+                        f"({len(dynamic_f0) * DDSP_HOP_LENGTH / SAMPLE_RATE:.2f} seconds)"
                     ),
                     fig_dynamic,
                 ]
@@ -358,6 +359,7 @@ def __(
         dynamic_features = None
         mo.md("**Load an audio file first**")
     return (
+        DDSP_HOP_LENGTH,
         ax1,
         ax2,
         dynamic_f0,
@@ -365,7 +367,6 @@ def __(
         dynamic_loudness,
         f0_midi,
         fig_dynamic,
-        hop_length,
         t,
     )
 
