@@ -12,6 +12,8 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
+from composition.common import generate_audio
+
 FloatArray = NDArray[np.float64]
 
 # Constants
@@ -36,8 +38,6 @@ def generate_audio_with_ddsp(
     Returns:
         Generated audio samples
     """
-    from composition.common import generate_audio
-
     return generate_audio(model, f0, loudness, stretch)
 
 

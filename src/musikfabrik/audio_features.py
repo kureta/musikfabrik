@@ -16,6 +16,8 @@ from scipy.interpolate import interp1d
 from scipy.ndimage import median_filter
 from scipy.signal import find_peaks
 
+from performer.utils.features import Loudness
+
 FloatArray = NDArray[np.float64]
 
 
@@ -262,8 +264,6 @@ def get_dynamic_loudness(
     Returns:
         Array of loudness values (in dB) over time
     """
-    from performer.utils.features import Loudness
-
     loudness_detector = Loudness()
 
     with torch.no_grad():
