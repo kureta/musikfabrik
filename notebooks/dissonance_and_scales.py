@@ -64,105 +64,32 @@ def __(mo):
         r"""
     ## 1. Define Partials
 
-    Choose between loading saved partials or defining synthetic partials.
+    Define partials for both the **base (fixed) sound** and the **swept sound** independently.
     """
     )
     return
 
 
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""### Base (Fixed) Sound""")
+    return
+
+
 @app.cell
 def __(mo):
-    partial_source = mo.ui.radio(
+    fixed_source = mo.ui.radio(
         options=["Synthetic", "Load from file"],
         value="Synthetic",
-        label="Partial source:",
+        label="Base sound source:",
     )
-    partial_source
-    return (partial_source,)
-
-
-@app.cell(hide_code=True)
-def __(mo):
-    mo.md(r"""### Synthetic Partials Parameters""")
-    return
-
-
-@app.cell
-def __(librosa, mo, np):
-    # Synthetic partials controls
-    f0_slider = mo.ui.slider(
-        steps=np.logspace(np.log2(55.0), np.log2(880.0), num=100, base=2.0).tolist(),
-        value=float(librosa.note_to_hz("C4")),
-        show_value=True,
-        label="F0 (Hz):",
-    )
-
-    n_partials_synth = mo.ui.slider(
-        start=2,
-        stop=16,
-        value=8,
-        step=1,
-        show_value=True,
-        label="Number of partials:",
-    )
-
-    stretch_1 = mo.ui.slider(
-        start=0.8,
-        stop=1.3,
-        value=1.0,
-        step=0.01,
-        show_value=True,
-        label="Stretch factor (fixed sound):",
-    )
-
-    stretch_2 = mo.ui.slider(
-        start=0.8,
-        stop=1.3,
-        value=1.05,
-        step=0.01,
-        show_value=True,
-        label="Stretch factor (swept sound):",
-    )
-
-    decay_factor = mo.ui.slider(
-        start=0.5,
-        stop=0.99,
-        value=0.9,
-        step=0.01,
-        show_value=True,
-        label="Amplitude decay factor:",
-    )
-
-    use_dbs = mo.ui.checkbox(value=True, label="Use dB scale with A-weighting")
-
-    mo.vstack(
-        [
-            f0_slider,
-            n_partials_synth,
-            mo.hstack([stretch_1, stretch_2]),
-            decay_factor,
-            use_dbs,
-        ]
-    )
-    return (
-        decay_factor,
-        f0_slider,
-        n_partials_synth,
-        stretch_1,
-        stretch_2,
-        use_dbs,
-    )
-
-
-@app.cell(hide_code=True)
-def __(mo):
-    mo.md(r"""### Load Partials from File""")
-    return
+    fixed_source
+    return (fixed_source,)
 
 
 @app.cell
 def __(Path, mo):
-    # File loader for partials
+    # File loader for fixed partials
     features_dir = Path("data/extracted_features")
     if features_dir.exists():
         partial_files = sorted(
@@ -171,105 +98,263 @@ def __(Path, mo):
     else:
         partial_files = []
 
-    partials_file_selector = mo.ui.dropdown(
+    fixed_file_selector = mo.ui.dropdown(
         options=partial_files if partial_files else ["No files found"],
         value=partial_files[0] if partial_files else None,
-        label="Select partials file:",
+        label="Select partials file for base sound:",
         allow_select_none=True,
     )
 
-    partials_file_selector
-    return features_dir, partial_files, partials_file_selector
+    fixed_file_selector
+    return features_dir, fixed_file_selector, partial_files
+
+
+@app.cell
+def __(librosa, mo, np):
+    # Synthetic partials controls for fixed sound
+    fixed_f0 = mo.ui.slider(
+        steps=np.logspace(np.log2(55.0), np.log2(880.0), num=100, base=2.0).tolist(),
+        value=float(librosa.note_to_hz("C4")),
+        show_value=True,
+        label="F0 (Hz):",
+    )
+
+    fixed_n_partials = mo.ui.slider(
+        start=2,
+        stop=16,
+        value=8,
+        step=1,
+        show_value=True,
+        label="Number of partials:",
+    )
+
+    fixed_stretch = mo.ui.slider(
+        start=0.8,
+        stop=1.3,
+        value=1.0,
+        step=0.01,
+        show_value=True,
+        label="Stretch factor:",
+    )
+
+    fixed_decay = mo.ui.slider(
+        start=0.5,
+        stop=0.99,
+        value=0.9,
+        step=0.01,
+        show_value=True,
+        label="Amplitude decay:",
+    )
+
+    mo.vstack(
+        [
+            fixed_f0,
+            fixed_n_partials,
+            fixed_stretch,
+            fixed_decay,
+        ]
+    )
+    return (
+        fixed_decay,
+        fixed_f0,
+        fixed_n_partials,
+        fixed_stretch,
+    )
 
 
 @app.cell
 def __(
-    decay_factor,
-    f0_slider,
+    fixed_decay,
+    fixed_f0,
+    fixed_file_selector,
+    fixed_n_partials,
+    fixed_source,
+    fixed_stretch,
     generate_synthetic_partials,
     json,
     mo,
-    n_partials_synth,
     np,
-    partial_source,
-    partials_file_selector,
-    stretch_1,
-    stretch_2,
-    use_dbs,
 ):
-    # Generate or load partials based on source
-    if partial_source.value == "Synthetic":
-        # Generate synthetic partials
+    # Generate or load fixed partials
+    if fixed_source.value == "Synthetic":
         fixed_partials, fixed_amps = generate_synthetic_partials(
-            f0=f0_slider.value,
-            n_partials=n_partials_synth.value,
-            stretch_factor=stretch_1.value,
-            amp_decay_factor=decay_factor.value,
-            in_dbs=use_dbs.value,
+            f0=fixed_f0.value,
+            n_partials=fixed_n_partials.value,
+            stretch_factor=fixed_stretch.value,
+            amp_decay_factor=fixed_decay.value,
         )
-
-        swept_partials, swept_amps = generate_synthetic_partials(
-            f0=f0_slider.value,
-            n_partials=n_partials_synth.value,
-            stretch_factor=stretch_2.value,
-            amp_decay_factor=decay_factor.value,
-            in_dbs=use_dbs.value,
-        )
-
-        partials_defined = True
-        loaded_partials = None
-    elif partial_source.value == "Load from file" and partials_file_selector.value:
-        # Load partials from file
+        fixed_status = mo.md(f"**Generated synthetic partials** (F0={fixed_f0.value:.1f} Hz)")
+    elif fixed_source.value == "Load from file" and fixed_file_selector.value:
         try:
-            with open(partials_file_selector.value, "r") as file_handle:
-                loaded_partials = json.load(file_handle)
-
-            # Use loaded partials for both fixed and swept
-            fixed_partials = np.array(loaded_partials["frequencies"])
-            fixed_amps = np.array(loaded_partials["amplitudes"])
-            swept_partials = fixed_partials.copy()
-            swept_amps = fixed_amps.copy()
-            partials_defined = True
+            with open(fixed_file_selector.value, "r") as fixed_file_handle:
+                fixed_loaded = json.load(fixed_file_handle)
+            fixed_partials = np.array(fixed_loaded["frequencies"])
+            fixed_amps = np.array(fixed_loaded["amplitudes"])
+            fixed_status = mo.md(
+                f"**Loaded from:** `{fixed_file_selector.value}`  \n"
+                f"**F0:** {fixed_loaded['f0']:.2f} Hz, **Partials:** {len(fixed_partials)}"
+            )
         except Exception as e:
             fixed_partials = None
             fixed_amps = None
-            swept_partials = None
-            swept_amps = None
-            partials_defined = False
-            loaded_partials = None
+            fixed_status = mo.md(f"**Error loading file:** {e}")
     else:
         fixed_partials = None
         fixed_amps = None
-        swept_partials = None
-        swept_amps = None
-        partials_defined = False
-        loaded_partials = None
+        fixed_status = mo.md("_Select a file to load base sound partials_")
     
+    fixed_status
     return (
         fixed_amps,
+        fixed_loaded,
         fixed_partials,
-        loaded_partials,
-        partials_defined,
-        swept_amps,
-        swept_partials,
+        fixed_status,
+    )
+
+
+@app.cell(hide_code=True)
+def __(mo):
+    mo.md(r"""### Swept Sound""")
+    return
+
+
+@app.cell
+def __(mo):
+    swept_source = mo.ui.radio(
+        options=["Synthetic", "Load from file"],
+        value="Synthetic",
+        label="Swept sound source:",
+    )
+    swept_source
+    return (swept_source,)
+
+
+@app.cell
+def __(mo, partial_files):
+    swept_file_selector = mo.ui.dropdown(
+        options=partial_files if partial_files else ["No files found"],
+        value=partial_files[0] if partial_files else None,
+        label="Select partials file for swept sound:",
+        allow_select_none=True,
+    )
+
+    swept_file_selector
+    return (swept_file_selector,)
+
+
+@app.cell
+def __(librosa, mo, np):
+    # Synthetic partials controls for swept sound
+    swept_f0 = mo.ui.slider(
+        steps=np.logspace(np.log2(55.0), np.log2(880.0), num=100, base=2.0).tolist(),
+        value=float(librosa.note_to_hz("C4")),
+        show_value=True,
+        label="F0 (Hz):",
+    )
+
+    swept_n_partials = mo.ui.slider(
+        start=2,
+        stop=16,
+        value=8,
+        step=1,
+        show_value=True,
+        label="Number of partials:",
+    )
+
+    swept_stretch = mo.ui.slider(
+        start=0.8,
+        stop=1.3,
+        value=1.05,
+        step=0.01,
+        show_value=True,
+        label="Stretch factor:",
+    )
+
+    swept_decay = mo.ui.slider(
+        start=0.5,
+        stop=0.99,
+        value=0.9,
+        step=0.01,
+        show_value=True,
+        label="Amplitude decay:",
+    )
+
+    mo.vstack(
+        [
+            swept_f0,
+            swept_n_partials,
+            swept_stretch,
+            swept_decay,
+        ]
+    )
+    return (
+        swept_decay,
+        swept_f0,
+        swept_n_partials,
+        swept_stretch,
     )
 
 
 @app.cell
-def __(fixed_partials, loaded_partials, mo, partial_source, partials_file_selector):
-    # Display loaded partials info
-    if partial_source.value == "Load from file" and partials_file_selector.value:
-        if loaded_partials is not None:
-            mo.md(
-                f"**Loaded partials from:** `{partials_file_selector.value}`\n\n"
-                f"**F0:** {loaded_partials['f0']:.2f} Hz, "
-                f"**Partials:** {len(fixed_partials)}"
+def __(
+    generate_synthetic_partials,
+    json,
+    mo,
+    np,
+    swept_decay,
+    swept_f0,
+    swept_file_selector,
+    swept_n_partials,
+    swept_source,
+    swept_stretch,
+):
+    # Generate or load swept partials
+    if swept_source.value == "Synthetic":
+        swept_partials, swept_amps = generate_synthetic_partials(
+            f0=swept_f0.value,
+            n_partials=swept_n_partials.value,
+            stretch_factor=swept_stretch.value,
+            amp_decay_factor=swept_decay.value,
+        )
+        swept_status = mo.md(f"**Generated synthetic partials** (F0={swept_f0.value:.1f} Hz)")
+    elif swept_source.value == "Load from file" and swept_file_selector.value:
+        try:
+            with open(swept_file_selector.value, "r") as swept_file_handle:
+                swept_loaded = json.load(swept_file_handle)
+            swept_partials = np.array(swept_loaded["frequencies"])
+            swept_amps = np.array(swept_loaded["amplitudes"])
+            swept_status = mo.md(
+                f"**Loaded from:** `{swept_file_selector.value}`  \n"
+                f"**F0:** {swept_loaded['f0']:.2f} Hz, **Partials:** {len(swept_partials)}"
             )
-        else:
-            mo.md("**Error loading partials**")
+        except Exception as e:
+            swept_partials = None
+            swept_amps = None
+            swept_status = mo.md(f"**Error loading file:** {e}")
     else:
-        mo.md("_Select a file to load partials_")
-    return
+        swept_partials = None
+        swept_amps = None
+        swept_status = mo.md("_Select a file to load swept sound partials_")
+    
+    swept_status
+    return (
+        swept_amps,
+        swept_loaded,
+        swept_partials,
+        swept_status,
+    )
+
+
+@app.cell
+def __(fixed_amps, fixed_partials, swept_amps, swept_partials):
+    # Check if partials are defined
+    partials_defined = (
+        fixed_partials is not None and 
+        fixed_amps is not None and 
+        swept_partials is not None and 
+        swept_amps is not None
+    )
+    return (partials_defined,)
 
 
 @app.cell(hide_code=True)
@@ -345,7 +430,7 @@ def __(
             )
 
             dissonance_calculated = True
-            mo.md(
+            dissonance_status = mo.md(
                 f"**Dissonance curve calculated** with {len(cents_axis)} points "
                 f"({start_cents.value} to {end_cents.value} cents)"
             )
@@ -353,13 +438,15 @@ def __(
             cents_axis = None
             roughness = None
             dissonance_calculated = False
-            mo.md(f"**Error calculating dissonance:** {e}")
+            dissonance_status = mo.md(f"**Error calculating dissonance:** {e}")
     else:
         cents_axis = None
         roughness = None
         dissonance_calculated = False
-        mo.md("**Define partials first**")
-    return cents_axis, dissonance_calculated, roughness
+        dissonance_status = mo.md("**Define partials first**")
+    
+    dissonance_status
+    return cents_axis, dissonance_calculated, dissonance_status, roughness
 
 
 @app.cell(hide_code=True)

@@ -70,30 +70,22 @@ def generate_synthetic_partials(
     n_partials: int = 8,
     stretch_factor: float = 1.0,
     amp_decay_factor: float = 0.9,
-    in_dbs: bool = True,
 ) -> tuple[FloatArray, FloatArray]:
     """Generate synthetic partials with exponential amplitude decay.
+    
+    Always uses linear amplitudes (not dB or A-weighted) for static feature calculations.
 
     Args:
         f0: Fundamental frequency
         n_partials: Number of partials to generate
         stretch_factor: Inharmonicity factor (1.0 = harmonic)
         amp_decay_factor: Amplitude decay per partial
-        in_dbs: Apply A-weighting in dB scale
 
     Returns:
         Tuple of (partial frequencies, partial amplitudes)
     """
     partials = f0 * generate_partial_ratios(n_partials, stretch_factor)
     amplitudes = generate_partial_amps(1.0, n_partials, amp_decay_factor)
-
-    if in_dbs:
-        amplitudes = librosa.amplitude_to_db(amplitudes)
-        amplitudes += librosa.A_weighting(partials, min_db=-180)
-        amplitudes -= amplitudes.min()
-        amp_max = amplitudes.max()
-        if amp_max > 0:
-            amplitudes /= amp_max
 
     return partials, amplitudes
 
@@ -104,12 +96,13 @@ def calculate_synthetic_dissonance_curve(
     stretch_factor_1: float = 1.05,
     stretch_factor_2: float = 1.0,
     amp_decay_factor: float = 0.9,
-    in_dbs: bool = True,
     start_delta_cents: float = -100,
     end_delta_cents: float = 1300,
     cents_per_bin: float = 0.25,
 ) -> tuple[FloatArray, FloatArray]:
     """Calculate dissonance curve for two synthetic sounds.
+    
+    Uses linear amplitudes (not dB or A-weighted) for static feature calculations.
 
     Args:
         f0: Fundamental frequency
@@ -117,7 +110,6 @@ def calculate_synthetic_dissonance_curve(
         stretch_factor_1: Stretch factor for fixed sound
         stretch_factor_2: Stretch factor for swept sound
         amp_decay_factor: Amplitude decay factor
-        in_dbs: Use dB scale with A-weighting
         start_delta_cents: Starting interval in cents
         end_delta_cents: Ending interval in cents
         cents_per_bin: Resolution in cents
@@ -126,10 +118,10 @@ def calculate_synthetic_dissonance_curve(
         Tuple of (cents array, roughness values)
     """
     fixed_partials, fixed_amplitudes = generate_synthetic_partials(
-        f0, n_partials, stretch_factor_1, amp_decay_factor, in_dbs
+        f0, n_partials, stretch_factor_1, amp_decay_factor
     )
     swept_partials, swept_amplitudes = generate_synthetic_partials(
-        f0, n_partials, stretch_factor_2, amp_decay_factor, in_dbs
+        f0, n_partials, stretch_factor_2, amp_decay_factor
     )
 
     return calculate_dissonance_curve(
