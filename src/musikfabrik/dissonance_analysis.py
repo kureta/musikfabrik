@@ -276,8 +276,7 @@ def generate_scales_from_intervals(
 ) -> list[list[int]]:
     """Generate valid scales from consonant interval groups.
 
-    This is a simplified version from the existing generate_scales.py.
-    For full scale generation with constraints, use that module.
+    Uses constraint-based validation to ensure scales satisfy interval relationships.
 
     Args:
         intervals: List of interval groups (in cents)

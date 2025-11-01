@@ -481,9 +481,6 @@ def __(mo):
     ## 4. Generate Scales
 
     Generate scales from consonant intervals using constraint-based algorithm.
-
-    **Note:** This is a simplified version. For full scale generation with all constraints,
-    see the original `generate_scales.py` notebook.
     """
     )
     return
