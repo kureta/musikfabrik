@@ -149,7 +149,7 @@ class StretchingHarmonicOscillator(nn.Module):
 
         harmonics = torch.arange(1, self.n_harmonics + 1, step=1) ** stretch
         # Calculate overtone frequencies
-        overtone_fs = torch.einsum("bct,to->bcot", f0, harmonics**stretch)
+        overtone_fs = torch.einsum("bct,to->bcot", f0, harmonics)
 
         # set amplitudes of overtones above Nyquist to 0.0
         overtone_amplitudes[overtone_fs > np.pi] = 0.0

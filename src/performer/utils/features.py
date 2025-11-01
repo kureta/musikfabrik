@@ -34,7 +34,7 @@ class Loudness(nn.Module):
         super().__init__()
         frequencies = librosa.fft_frequencies(sr=SAMPLE_RATE, n_fft=N_FFT).astype(
             "float32"
-        )[1:]
+        )
         a_weighting = librosa.A_weighting(frequencies, min_db=-80)[None, :].astype(
             "float32"
         )
