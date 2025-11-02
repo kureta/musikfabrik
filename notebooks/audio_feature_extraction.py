@@ -11,7 +11,7 @@ This Marimo notebook provides a UI for:
 
 import marimo
 
-__generated_with = "0.17.2"
+__generated_with = "0.17.6"
 app = marimo.App(width="medium")
 
 
@@ -58,23 +58,23 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""# Audio Feature Extraction""")
+    mo.md(r"""
+    # Audio Feature Extraction
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 1. Load Audio File
 
     Select an audio file to extract features from.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Path, mo):
     # File browser for selecting audio files
     data_path = Path("data/samples")
@@ -105,7 +105,7 @@ def _(Path, mo):
     return file_input, file_selector
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
     # Load the selected audio file
     selected_file = file_selector.value if file_selector.value else file_input.value
@@ -132,17 +132,15 @@ def _(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 2. Extract Static Partials (FFT)
 
     Extract partial frequencies and amplitudes from the entire audio file.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, np):
     # UI controls for partial extraction
     n_partials_slider = mo.ui.slider(
@@ -182,7 +180,7 @@ def _(mo, np):
     return auto_detect_f0, f0_estimate_slider, height_slider, n_partials_slider
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     Figure,
     SAMPLE_RATE,
@@ -264,22 +262,20 @@ def _(
         partials_display = mo.md("**Load an audio file first**")
 
     partials_display
-    return (partials_data,)
+    return freqs, partials_data
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 3. Extract Dynamic Features (STFT)
 
     Extract time-varying f0 and loudness.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     Figure,
     SAMPLE_RATE,
@@ -351,17 +347,15 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 4. Spectral Stretching
 
     Apply time-varying spectral stretching to the audio.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # UI controls for stretching
     stretch_start = mo.ui.slider(
@@ -424,7 +418,7 @@ def _(mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     SAMPLE_RATE,
     attack_frames,
@@ -482,18 +476,16 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 5. Save Extracted Features
 
     Save the extracted features to JSON and/or pickle files.
-    """
-    )
+    """)
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _(Path, file_selector, freqs, mo):
     # UI for saving
     save_dir = mo.ui.text(
         value="data/extracted_features",
@@ -502,7 +494,7 @@ def _(mo):
     )
 
     save_name = mo.ui.text(
-        value="sample_features",
+        value=f"{Path(file_selector.value).resolve().stem}-np{len(freqs)}",
         label="Filename (without extension):",
         full_width=True,
     )
@@ -527,7 +519,7 @@ def _(mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     Path,
     dynamic_features,

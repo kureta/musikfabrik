@@ -11,7 +11,7 @@ This Marimo notebook provides a UI for:
 
 import marimo
 
-__generated_with = "0.17.2"
+__generated_with = "0.17.6"
 app = marimo.App(width="medium")
 
 
@@ -58,29 +58,31 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""# Dissonance Curves and Scale Generation""")
+    mo.md(r"""
+    # Dissonance Curves and Scale Generation
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 1. Define Partials
 
     Define partials for both the **base (fixed) sound** and the **swept sound** independently.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""### Base (Fixed) Sound""")
+    mo.md(r"""
+    ### Base (Fixed) Sound
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     fixed_source = mo.ui.radio(
         options=["Synthetic", "Load from file"],
@@ -91,7 +93,7 @@ def _(mo):
     return (fixed_source,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(Path, mo):
     # File loader for fixed partials
     features_dir = Path("data/extracted_features")
@@ -119,7 +121,7 @@ def _(fixed_loaded, load_audio, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(librosa, mo, np):
     # Synthetic partials controls for fixed sound
     fixed_f0 = mo.ui.slider(
@@ -169,7 +171,7 @@ def _(librosa, mo, np):
     return fixed_decay, fixed_f0, fixed_n_partials, fixed_stretch
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     fixed_decay,
     fixed_f0,
@@ -179,6 +181,7 @@ def _(
     fixed_stretch,
     generate_synthetic_partials,
     json,
+    librosa,
     mo,
     np,
 ):
@@ -201,7 +204,7 @@ def _(
             fixed_amps = np.array(fixed_loaded["amplitudes"])
             fixed_status = mo.md(
                 f"**Loaded from:** `{fixed_file_selector.value}`  \n"
-                f"**F0:** {fixed_loaded['f0']:.2f} Hz, **Partials:** {len(fixed_partials)}"
+                f"**F0:** {fixed_loaded['f0']:.2f} Hz ({librosa.hz_to_note(fixed_loaded['f0'])}), **Partials:** {len(fixed_partials)}"
             )
         except Exception as e:
             fixed_partials = None
@@ -218,11 +221,13 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""### Swept Sound""")
+    mo.md(r"""
+    ### Swept Sound
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     swept_source = mo.ui.radio(
         options=["Synthetic", "Load from file"],
@@ -233,7 +238,7 @@ def _(mo):
     return (swept_source,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, partial_files):
     swept_file_selector = mo.ui.dropdown(
         options=partial_files if partial_files else ["No files found"],
@@ -252,7 +257,7 @@ def _(load_audio, mo, swept_loaded):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Synthetic partials controls for swept sound
     # Note: swept sound uses the same F0 as the fixed (base) sound
@@ -295,11 +300,12 @@ def _(mo):
     return swept_decay, swept_n_partials, swept_stretch
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     fixed_partials,
     generate_synthetic_partials,
     json,
+    librosa,
     mo,
     np,
     swept_decay,
@@ -322,7 +328,7 @@ def _(
                 amp_decay_factor=swept_decay.value,
             )
             swept_status = mo.md(
-                f"**Generated synthetic partials** (F0={base_f0:.1f} Hz, matching base sound)"
+                f"**Generated synthetic partials** (F0={base_f0:.1f} Hz ({librosa.hz_to_note(base_f0)}), matching base sound)"
             )
         elif swept_source.value == "Load from file" and swept_file_selector.value:
             try:
@@ -340,7 +346,7 @@ def _(
 
                 swept_status = mo.md(
                     f"**Loaded from:** `{swept_file_selector.value}`  \n"
-                    f"**Original F0:** {swept_f0_orig:.2f} Hz → **Transposed to:** {base_f0:.2f} Hz  \n"
+                    f"**Original F0:** {swept_f0_orig:.2f} Hz ({librosa.hz_to_note(swept_f0_orig)}) → **Transposed to:** {base_f0:.2f} Hz ({librosa.hz_to_note(base_f0)}) \n"
                     f"**Partials:** {len(swept_partials)}"
                 )
             except Exception as e:
@@ -360,7 +366,7 @@ def _(
     return base_f0, swept_amps, swept_f0_orig, swept_loaded, swept_partials
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(fixed_amps, fixed_partials, swept_amps, swept_partials):
     # Check if partials are defined
     partials_defined = (
@@ -374,35 +380,33 @@ def _(fixed_amps, fixed_partials, swept_amps, swept_partials):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 2. Calculate Dissonance Curve
 
     Generate the dissonance curve by sweeping one sound against another.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Dissonance curve parameters
     start_cents = mo.ui.slider(
-        start=-800,
-        stop=300,
-        value=-800,
-        step=1,
+        start=-2400,
+        stop=2400,
+        value=-100,
+        step=100,
         show_value=True,
         label="Start (cents):",
     )
 
-    end_cents = mo.ui.slider(
-        start=300,
+    range_cents = mo.ui.slider(
+        start=500,
         stop=2400,
-        value=800,
-        step=1,
+        value=1400,
+        step=100,
         show_value=True,
-        label="End (cents):",
+        label="Range (cents):",
     )
 
     cents_resolution = mo.ui.slider(
@@ -414,23 +418,25 @@ def _(mo):
         label="Resolution (cents/bin):",
     )
 
-    mo.vstack([mo.hstack([start_cents, end_cents]), cents_resolution])
-    return cents_resolution, end_cents, start_cents
+    mo.vstack([mo.hstack([start_cents, range_cents]), cents_resolution])
+    return cents_resolution, range_cents, start_cents
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     calculate_dissonance_curve,
     cents_resolution,
-    end_cents,
     fixed_amps,
     fixed_partials,
     mo,
     partials_defined,
+    range_cents,
     start_cents,
     swept_amps,
     swept_partials,
 ):
+    end_cents = start_cents.value + range_cents.value
+
     # Calculate dissonance curve
     if partials_defined:
         try:
@@ -440,14 +446,14 @@ def _(
                 swept_partials,
                 swept_amps,
                 start_delta_cents=start_cents.value,
-                end_delta_cents=end_cents.value,
+                end_delta_cents=end_cents,
                 cents_per_bin=cents_resolution.value,
             )
 
             dissonance_calculated = True
             dissonance_status = mo.md(
                 f"**Dissonance curve calculated** with {len(cents_axis)} points "
-                f"({start_cents.value} to {end_cents.value} cents)"
+                f"({start_cents.value} to {end_cents} cents)"
             )
         except Exception as e:
             cents_axis = None
@@ -466,17 +472,15 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 3. Find Consonant Intervals
 
     Detect local minima in the dissonance curve that represent consonant intervals.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Consonant interval detection parameters
     deviation_slider = mo.ui.slider(
@@ -491,7 +495,7 @@ def _(mo):
     distance_slider = mo.ui.slider(
         start=1.0,
         stop=200.0,
-        value=20.0,
+        value=100.0,
         step=1.0,
         show_value=True,
         label="Minimum distance (bins):",
@@ -501,7 +505,7 @@ def _(mo):
     return deviation_slider, distance_slider
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     Figure,
     cents_axis,
@@ -591,17 +595,15 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 3.5. Listen to Consonant Intervals
 
     Generate audio to hear the consonant intervals over the base (fixed) sound.
-    """
-    )
+    """)
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     # Controls for audio generation
     audio_duration_slider = mo.ui.slider(
@@ -632,7 +634,7 @@ def _(mo):
     return audio_duration_slider, interval_gap_slider
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     generate_audio_button = mo.ui.run_button(
         label="Generate Audio for Consonant Intervals",
@@ -645,7 +647,7 @@ def _(mo):
     return base_vol, generate_audio_button, midi_note, swept_vol
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     audio_duration_slider,
     base_f0,
@@ -720,16 +722,14 @@ def _(
                     swept_audio_base = load_audio(swept_loaded["source_file"], sr)[
                         0
                     ][: int(duration * sr)]
-                    swept_audio_transposed = librosa.effects.pitch_shift(
-                        swept_audio_base,
-                        sr=sr,
-                        n_steps=midi_note.value
-                        - librosa.hz_to_midi(swept_f0_orig),
-                    )
                     # Pitch shift by interval_cents
-                    n_steps = interval_cents / 100.0  # Convert cents to semitones
+                    n_steps = (
+                        interval_cents / 100.0
+                        + midi_note.value
+                        - librosa.hz_to_midi(swept_f0_orig)
+                    )  # Convert cents to semitones
                     swept_audio = librosa.effects.pitch_shift(
-                        swept_audio_transposed,
+                        swept_audio_base,
                         sr=sr,
                         n_steps=n_steps,
                     )
@@ -791,13 +791,11 @@ def _(
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 4. Generate Scales
 
     Generate scales from consonant intervals using constraint-based algorithm.
-    """
-    )
+    """)
     return
 
 
@@ -892,13 +890,11 @@ def _(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 5. Save Results
 
     Save the consonant intervals and generated scales to JSON.
-    """
-    )
+    """)
     return
 
 
