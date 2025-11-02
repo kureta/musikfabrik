@@ -19,6 +19,7 @@ app = marimo.App(width="medium")
 def _():
     import json
     from pathlib import Path
+    import random
 
     import librosa
     import marimo as mo
@@ -110,6 +111,12 @@ def _(Path, mo):
 
     fixed_file_selector
     return fixed_file_selector, partial_files
+
+
+@app.cell
+def _(fixed_loaded, load_audio, mo):
+    mo.audio(load_audio(fixed_loaded["source_file"], 48000)[0], 48000)
+    return
 
 
 @app.cell
@@ -237,6 +244,12 @@ def _(mo, partial_files):
 
     swept_file_selector
     return (swept_file_selector,)
+
+
+@app.cell
+def _(load_audio, mo, swept_loaded):
+    mo.audio(load_audio(swept_loaded["source_file"], 48000)[0], 48000)
+    return
 
 
 @app.cell
@@ -592,10 +605,10 @@ def _(mo):
 def _(mo):
     # Controls for audio generation
     audio_duration_slider = mo.ui.slider(
-        start=0.5,
+        start=0.1,
         stop=5.0,
         value=2.0,
-        step=0.5,
+        step=0.1,
         show_value=True,
         label="Audio duration (seconds):",
     )
@@ -625,14 +638,18 @@ def _(mo):
         label="Generate Audio for Consonant Intervals",
         kind="success",
     )
-    generate_audio_button
-    return (generate_audio_button,)
+    midi_note = mo.ui.slider(0, 127, 1, 60, show_value=True)
+    base_vol = mo.ui.slider(0.1, 1, 0.1, 1.0, show_value=True)
+    swept_vol = mo.ui.slider(0.1, 1, 0.1, 1.0, show_value=True)
+    generate_audio_button, midi_note, base_vol, swept_vol
+    return base_vol, generate_audio_button, midi_note, swept_vol
 
 
 @app.cell
 def _(
     audio_duration_slider,
     base_f0,
+    base_vol,
     consonant_cents,
     fixed_amps,
     fixed_loaded,
@@ -642,6 +659,7 @@ def _(
     interval_gap_slider,
     librosa,
     load_audio,
+    midi_note,
     mo,
     np,
     swept_amps,
@@ -649,6 +667,7 @@ def _(
     swept_loaded,
     swept_partials,
     swept_source,
+    swept_vol,
     synthesize_audio_from_partials,
 ):
     # Generate audio for each consonant interval
@@ -674,9 +693,14 @@ def _(
                     sr=sr,
                 )
             else:
-                base_audio = load_audio(fixed_loaded["source_file"], sr)[0][
+                base_f0_midi = librosa.hz_to_midi(base_f0)
+                f0_offset = midi_note.value - base_f0_midi
+                base_audio_ = load_audio(fixed_loaded["source_file"], sr)[0][
                     : int(duration * sr)
                 ]
+                base_audio = librosa.effects.pitch_shift(
+                    base_audio_, sr=sr, n_steps=f0_offset
+                )
 
             for interval_cents in consonant_cents:
                 # Transpose swept sound to the consonant interval
@@ -699,7 +723,7 @@ def _(
                     swept_audio_transposed = librosa.effects.pitch_shift(
                         swept_audio_base,
                         sr=sr,
-                        n_steps=librosa.hz_to_midi(base_f0)
+                        n_steps=midi_note.value
                         - librosa.hz_to_midi(swept_f0_orig),
                     )
                     # Pitch shift by interval_cents
@@ -711,7 +735,9 @@ def _(
                     )
 
                 # Mix base and swept sounds
-                mixed_audio = base_audio + swept_audio
+                mixed_audio = base_audio * (
+                    2 ** (-1 / base_vol.value)
+                ) + swept_audio * (2 ** (-1 / swept_vol.value))
 
                 # Normalize
                 max_val = np.abs(mixed_audio).max()
