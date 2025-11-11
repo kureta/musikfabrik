@@ -51,7 +51,6 @@ def _():
         mo,
         np,
         pickle,
-        sf,
         stretch_spectrum,
     )
 
@@ -108,7 +107,9 @@ def _(Path, mo):
 @app.cell(hide_code=True)
 def _(SAMPLE_RATE, file_input, file_selector, load_audio, mo):
     # Load the selected audio file
-    selected_file = file_selector.value if file_selector.value else file_input.value
+    selected_file = (
+        file_selector.value if file_selector.value else file_input.value
+    )
 
     if selected_file and selected_file != "No audio files found":
         try:
@@ -162,7 +163,9 @@ def _(mo, np):
     )
 
     f0_estimate_slider = mo.ui.slider(
-        steps=np.logspace(np.log2(40.0), np.log2(1000.0), num=100, base=2.0).tolist(),
+        steps=np.logspace(
+            np.log2(40.0), np.log2(1000.0), num=100, base=2.0
+        ).tolist(),
         value=np.logspace(np.log2(40.0), np.log2(1000.0), num=100, base=2.0)[0],
         show_value=True,
         label="F0 estimate (Hz):",
@@ -210,7 +213,7 @@ def _(
             )
 
             # Create visualization
-            fig = Figure(figsize=(12, 5), dpi=150)
+            fig = Figure(figsize=(12, 4), dpi=150)
             ax = fig.add_subplot(111)
 
             freqs = partials_data["frequencies"]
@@ -239,19 +242,59 @@ def _(
                 )
 
             # Create additive synthesis for comparison
-            time = np.linspace(0.0, 3.0, num=SAMPLE_RATE * 3)
+            time = np.linspace(0.0, 30.0, num=SAMPLE_RATE * 30)
             synthesis = np.zeros_like(time)
             for freq, amp in zip(freqs, amps):
                 synthesis += amp * np.sin(2 * np.pi * freq * time)
             synthesis /= np.abs(synthesis).max()
 
+            cons = [
+        -0.90,
+        0.00,
+        0.90,
+        1.21,
+        1.80,
+        2.20,
+        2.70,
+        3.06,
+        3.51,
+        3.82,
+        4.08,
+        4.43,
+        5.30,
+        6.02,
+        6.28,
+        7.59,
+        8.25,
+        9.19,
+        9.79,
+        10.10,
+        10.60,
+        11.31,
+        11.79,
+        13.41
+      ]
+            dur = 1.0
+            time = np.linspace(
+                0.0, dur * len(freqs), num=int(SAMPLE_RATE  * len(cons) * dur)
+            )
+            synthesis2 = np.zeros_like(time)
+            for idx, c in enumerate(cons):
+                for freq, amp in zip(freqs, amps):
+                    ff = librosa.midi_to_hz(c + librosa.hz_to_midi(freq)) * 2
+                    synthesis2[int(idx*SAMPLE_RATE * dur):int((idx+1)*SAMPLE_RATE * dur)] += amp * np.sin(2 * np.pi * ff * time[int(idx*SAMPLE_RATE * dur):int((idx+1)*SAMPLE_RATE * dur)])
+            synthesis2 /= np.abs(synthesis2).max()
+
             partials_display = mo.vstack(
                 [
-                    mo.md(f"**F0:** {partials_data['f0']:.2f} Hz ({librosa.hz_to_note(partials_data['f0'])})"),
+                    mo.md(
+                        f"**F0:** {partials_data['f0']:.2f} Hz ({librosa.hz_to_note(partials_data['f0'])})"
+                    ),
                     mo.md(f"**Partials found:** {len(freqs)}"),
                     fig,
                     mo.md("**Additive synthesis (to verify partials):**"),
                     mo.audio(src=synthesis, rate=SAMPLE_RATE),
+                    mo.audio(src=synthesis2, rate=SAMPLE_RATE),
                 ]
             )
         except Exception as e:
@@ -263,6 +306,12 @@ def _(
 
     partials_display
     return freqs, partials_data
+
+
+@app.cell
+def _(freqs, librosa):
+    librosa.hz_to_midi(freqs) - 29  # librosa.hz_to_midi(freqs)[0]
+    return
 
 
 @app.cell(hide_code=True)
@@ -310,7 +359,9 @@ def _(
 
             # Loudness plot
             ax2.plot(t, dynamic_loudness, linewidth=1)
-            ax2.fill_between(t, dynamic_loudness.min(), dynamic_loudness, alpha=0.3)
+            ax2.fill_between(
+                t, dynamic_loudness.min(), dynamic_loudness, alpha=0.3
+            )
             ax2.set_xlabel("Time (s)")
             ax2.set_ylabel("Loudness (dB)")
             ax2.set_title("Dynamic Loudness")
@@ -471,7 +522,7 @@ def _(
         stretch_display = mo.md("**Load an audio file and extract dynamic features first**")
 
     stretch_display
-    return (stretched_audio,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -500,23 +551,16 @@ def _(Path, file_selector, freqs, mo):
     )
 
     save_partials_btn = mo.ui.run_button(label="Save Partials (JSON)")
-    save_dynamic_btn = mo.ui.button(label="Save Dynamic Features (Pickle)")
-    save_stretched_btn = mo.ui.button(label="Save Stretched Audio (WAV)")
+    save_dynamic_btn = mo.ui.run_button(label="Save Dynamic Features (Pickle)")
 
     mo.vstack(
         [
             save_dir,
             save_name,
-            mo.hstack([save_partials_btn, save_dynamic_btn, save_stretched_btn]),
+            mo.hstack([save_partials_btn, save_dynamic_btn]),
         ]
     )
-    return (
-        save_dir,
-        save_dynamic_btn,
-        save_name,
-        save_partials_btn,
-        save_stretched_btn,
-    )
+    return save_dir, save_dynamic_btn, save_name, save_partials_btn
 
 
 @app.cell(hide_code=True)
@@ -531,10 +575,7 @@ def _(
     save_dynamic_btn,
     save_name,
     save_partials_btn,
-    save_stretched_btn,
     selected_file,
-    sf,
-    stretched_audio,
 ):
     # Save functionality
     messages = []
@@ -578,18 +619,6 @@ def _(
             messages.append(f"✓ Saved dynamic features to {pickle_path}")
         except Exception as e:
             messages.append(f"✗ Error saving dynamic features: {e}")
-
-    if save_stretched_btn.value and stretched_audio is not None:
-        try:
-            save_path = Path(save_dir.value)
-            save_path.mkdir(parents=True, exist_ok=True)
-
-            wav_path = save_path / f"{save_name.value}_stretched.wav"
-            sf.write(wav_path, stretched_audio, 48000)
-
-            messages.append(f"✓ Saved stretched audio to {wav_path}")
-        except Exception as e:
-            messages.append(f"✗ Error saving stretched audio: {e}")
 
     if messages:
         save_display = mo.vstack([mo.md(msg) for msg in messages])

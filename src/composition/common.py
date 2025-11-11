@@ -3,6 +3,7 @@
 from collections import deque
 from itertools import accumulate, cycle
 
+import librosa
 import numpy as np
 import torch
 
@@ -13,7 +14,7 @@ SECOND = 250
 def generate_audio(instrument, f0, db, stretch):
     with torch.inference_mode():
         (f0, master, overtones), noise_ctrl = instrument.controller(
-            torch.from_numpy(f0[None, None, :]),  # .cuda()
+            torch.from_numpy(librosa.midi_to_hz(f0[None, None, :])),  # .cuda()
             torch.from_numpy(db[None, None, :]),  # .cuda()
         )
 

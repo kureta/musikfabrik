@@ -1,8 +1,13 @@
 (
 // ========== OPTIONS & BOOT ==========
-Server.default.options.memSize = 256 * 1024; // 1GB for safety; reduce as needed
-s.reboot;
+s.quit;
+Server.default.options.memSize = 256 * 1024;
+s.options.sampleRate = 48000;     // set audio sample rate to 48kHz
+s.options.blockSize = 192;        // set control rate (number of control periods per second)
+s.boot;                           // boot the server after setting options
 )
+s.reboot;
+
 
 // ========== SYNTHDEFS ==========
 (

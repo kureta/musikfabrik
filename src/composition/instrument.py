@@ -304,10 +304,10 @@ class Score:
             )
 
     def audio(self):
-        result = np.zeros(self.duration)
+        result = np.zeros((2, self.duration))
         for p in self.parts:
             audio = p.audio()
-            result[: len(audio)] += audio
+            result[:, : audio.shape[1]] = audio[:, :]
 
         return result
 

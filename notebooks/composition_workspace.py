@@ -10,14 +10,13 @@ This Marimo notebook provides a UI for:
 
 import marimo
 
-__generated_with = "0.17.2"
+__generated_with = "0.17.6"
 app = marimo.App(width="medium")
 
-
-@app.cell(hide_code=True)
-def _():
+with app.setup(hide_code=True):
     import pickle
     from datetime import datetime
+    from decimal import Decimal
     from pathlib import Path
 
     import librosa
@@ -46,50 +45,33 @@ def _():
         vibrato,
     )
     from performer.models.ddsp_module import get_harmonic_stretching_model
+    from composition.instrument import Score, Part, Phrase, show
+    import composition.common as k
 
     SAMPLE_RATE = 48000
     FRAME_RATE = 250
-    return (
-        FRAME_RATE,
-        Path,
-        breakpoint_curve,
-        constant_curve,
-        datetime,
-        generate_audio_with_ddsp,
-        get_dynamic_f0,
-        get_dynamic_loudness,
-        get_harmonic_stretching_model,
-        glissando,
-        load_audio,
-        midi_to_hz_curve,
-        mo,
-        np,
-        pitch_sequence,
-        sf,
-        vibrato,
-    )
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""# Composition Workspace""")
+def _():
+    mo.md(r"""
+    # Composition Workspace
+    """)
     return
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
+def _():
+    mo.md(r"""
     ## 1. Load DDSP Model
 
     Select a pre-trained DDSP model for synthesis.
-    """
-    )
+    """)
     return
 
 
-@app.cell
-def _(Path, mo):
+@app.cell(hide_code=True)
+def _():
     # Find available checkpoints
     checkpoints_dir = Path("data/checkpoints")
     if checkpoints_dir.exists():
@@ -108,8 +90,8 @@ def _(Path, mo):
     return checkpoint_files, model_selector
 
 
-@app.cell
-def _(checkpoint_files, get_harmonic_stretching_model, mo, model_selector):
+@app.cell(hide_code=True)
+def _(checkpoint_files, model_selector):
     # Load the selected model
     if model_selector.value:
         try:
@@ -134,19 +116,17 @@ def _(checkpoint_files, get_harmonic_stretching_model, mo, model_selector):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
+def _():
+    mo.md(r"""
     ## 2. Audio-Driven DDSP Control
 
     Load an audio file to extract f0 and loudness for DDSP control.
-    """
-    )
+    """)
     return
 
 
-@app.cell
-def _(Path, mo):
+@app.cell(hide_code=True)
+def _():
     # File selection for audio-driven control
     samples_dir = Path("data/samples")
     if samples_dir.exists():
@@ -157,7 +137,7 @@ def _(Path, mo):
         audio_files_ddsp = []
 
     audio_file_input = mo.ui.text(
-        value="data/samples/instruments/brass/Horn/ordinario/Hn-ord-C2-ff-N-N.wav",
+        value="",
         label="Audio file path:",
         full_width=True,
     )
@@ -173,15 +153,8 @@ def _(Path, mo):
     return audio_file_input, audio_file_selector
 
 
-@app.cell
-def _(
-    audio_file_input,
-    audio_file_selector,
-    get_dynamic_f0,
-    get_dynamic_loudness,
-    load_audio,
-    mo,
-):
+@app.cell(hide_code=True)
+def _(audio_file_input, audio_file_selector):
     # Load audio and extract features for DDSP
     selected_audio_file = (
         audio_file_selector.value
@@ -191,7 +164,7 @@ def _(
 
     if selected_audio_file and selected_audio_file != "No audio files found":
         try:
-            audio_for_ddsp, _ = load_audio(selected_audio_file)
+            audio_for_ddsp, _ = load_audio(selected_audio_file, normalize=False)
             f0_from_audio = get_dynamic_f0(audio_for_ddsp).astype("float32")
             loudness_from_audio = get_dynamic_loudness(audio_for_ddsp).astype(
                 "float32"
@@ -219,16 +192,31 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Spectral Stretch Control for Audio-Driven Mode""")
+def _():
+    mo.md(r"""
+    ### Spectral Stretch Control for Audio-Driven Mode
+    """)
     return
 
 
 @app.cell
-def _(mo):
+def _(f0_from_audio, model_selector):
+    def save_audio(signal, step=0.0):
+        output_path = Path("data/generated_audio")
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        file_name = f"{model_selector.value}-{librosa.hz_to_note(f0_from_audio.mean())}.{step}"
+        audio_path = output_path / f"{file_name}.wav"
+
+        sf.write(audio_path, signal.T, 48000)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
     # Stretch factor control for audio-driven mode
     audio_stretch_start = mo.ui.slider(
-        start=0.8,
+        start=0.0,
         stop=1.5,
         value=1.0,
         step=0.01,
@@ -246,7 +234,7 @@ def _(mo):
     )
 
     audio_stretch_end = mo.ui.slider(
-        start=0.8,
+        start=0.0,
         stop=1.5,
         value=1.0,
         step=0.01,
@@ -258,23 +246,33 @@ def _(mo):
     return audio_stretch_end, audio_stretch_peak, audio_stretch_start
 
 
-@app.cell
+@app.cell(hide_code=True)
+def _():
+    ddsp_from_audio_button = mo.ui.run_button(
+        label="DDSP from audio",
+        kind="success",
+    )
+
+    ddsp_from_audio_button
+    return (ddsp_from_audio_button,)
+
+
+@app.cell(hide_code=True)
 def _(
     audio_stretch_end,
     audio_stretch_peak,
     audio_stretch_start,
+    ddsp_from_audio_button,
     ddsp_model,
     f0_from_audio,
-    generate_audio_with_ddsp,
     loudness_from_audio,
-    mo,
-    np,
 ):
     # Generate audio from loaded features
     if (
         ddsp_model
         and f0_from_audio is not None
         and loudness_from_audio is not None
+        and ddsp_from_audio_button.value
     ):
         try:
             # Create stretch curve for audio-driven mode
@@ -327,25 +325,25 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
+def _():
+    mo.md(r"""
     ## 3. Manual DDSP Phrase Composition
 
     Create phrases by manually defining f0, loudness, and stretch factor curves.
-    """
-    )
+    """)
     return
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Phrase Type Selection""")
+def _():
+    mo.md(r"""
+    ### Phrase Type Selection
+    """)
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     phrase_type = mo.ui.radio(
         options=[
             "Simple Note",
@@ -362,13 +360,15 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Simple Note Parameters""")
+def _():
+    mo.md(r"""
+    ### Simple Note Parameters
+    """)
     return
 
 
-@app.cell
-def _(mo, np):
+@app.cell(hide_code=True)
+def _():
     # Simple note controls
     note_pitch = mo.ui.slider(
         steps=np.arange(36, 84, 0.01).tolist(),
@@ -421,13 +421,15 @@ def _(mo, np):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Note Sequence Parameters""")
+def _():
+    mo.md(r"""
+    ### Note Sequence Parameters
+    """)
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     # Note sequence controls
     sequence_pitches = mo.ui.text(
         value="60, 62, 64, 65, 67, 69, 71, 72",
@@ -476,13 +478,15 @@ def _(mo):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Glissando Parameters""")
+def _():
+    mo.md(r"""
+    ### Glissando Parameters
+    """)
     return
 
 
-@app.cell
-def _(mo, np):
+@app.cell(hide_code=True)
+def _():
     # Glissando controls
     gliss_start_pitch = mo.ui.slider(
         steps=np.arange(36, 84, 0.01).tolist(),
@@ -551,16 +555,20 @@ def _(mo, np):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Vibrato Parameters""")
+def _():
+    mo.md(r"""
+    ### Vibrato Parameters
+    """)
     return
 
 
-@app.cell
-def _(mo, np):
+@app.cell(hide_code=True)
+def _():
     # Vibrato controls
     vibr_center_pitch = mo.ui.slider(
-        steps=np.arange(36, 84, 0.01).tolist(),
+        start=36,
+        stop=84,
+        step=0.01,
         value=60.0,
         show_value=True,
         label="Center pitch (MIDI):",
@@ -631,13 +639,52 @@ def _(mo, np):
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Custom Breakpoints""")
+def _():
+    mo.md(r"""
+    ### Custom Breakpoints
+    """)
     return
 
 
 @app.cell
-def _(mo):
+def _():
+    cents = [
+        Decimal(c)
+        for c in [
+            "0",
+            "2.36",
+            "2.72",
+            "3.22",
+            "3.94",
+            "5.08",
+            "5.94",
+            "7.16",
+            "8.30",
+            "9.02",
+            "9.88",
+            "12.24",
+        ]
+    ]
+    # [55 + c for c in cents]  # 55, 57.72, 57.36, 63.3, 62.16, 64.88, 67.24
+    return (cents,)
+
+
+@app.cell
+def _(cents):
+    scale_102 = list(set(cents + shift(cents, cents[7]) + shift(cents, cents[5])))
+    return
+
+
+@app.function
+def shift(scale, shift):
+    cents = [(c + shift) % scale[-1] for c in scale]
+    cents = list(set([scale[-1] + c if c < 0 else c for c in cents]))
+    cents = sorted(cents)
+    return cents
+
+
+@app.cell(hide_code=True)
+def _():
     # Custom breakpoint controls
     custom_pitches = mo.ui.text(
         value="60, 64, 62, 67, 65, 60",
@@ -687,11 +734,8 @@ def _(mo):
     )
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
-    FRAME_RATE,
-    breakpoint_curve,
-    constant_curve,
     custom_loudness_values,
     custom_pitch_durations,
     custom_pitches,
@@ -703,15 +747,11 @@ def _(
     gliss_loudness,
     gliss_start_pitch,
     gliss_stretch,
-    glissando,
-    midi_to_hz_curve,
-    mo,
     note_duration,
     note_loudness,
     note_pitch,
     note_stretch,
     phrase_type,
-    pitch_sequence,
     sequence_durations,
     sequence_loudness,
     sequence_pitches,
@@ -722,7 +762,6 @@ def _(
     vibr_loudness,
     vibr_rate,
     vibr_stretch,
-    vibrato,
 ):
     # Generate phrase based on type
     try:
@@ -870,18 +909,40 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""### Generate Audio from Phrase""")
+def _():
+    mo.md(r"""
+    ### Generate Audio from Phrase
+    """)
     return
 
 
-@app.cell
+@app.function(hide_code=True)
+def generate_audio(instrument, f0, db, stretch, n=None):
+    with torch.inference_mode():
+        (f0, master, overtones), noise_ctrl = instrument.controller(
+            torch.from_numpy(f0[None, None, :]),  # .cuda()
+            torch.from_numpy(db[None, None, :]),  # .cuda()
+        )
+
+        if n is not None:
+            overtones[:, :, n:, :] = 0.0
+            overtones[:, :, : n - 1, :] = 0.0
+
+        # harm = forward(f0, master, overtones, stretch[:, None])
+        harm = instrument.harmonics(f0, master, overtones, stretch[:, None])
+        noise = instrument.noise(noise_ctrl)
+        dry = harm + noise
+        wet = instrument.reverb(dry)
+        out = dry * 0.1 + wet * 0.9
+
+    return out.cpu().squeeze().numpy()
+
+
+@app.cell(hide_code=True)
 def _(
     ddsp_model,
     f0_curve,
-    generate_audio_with_ddsp,
     loudness_curve,
-    mo,
     phrase_created,
     stretch_curve_manual,
 ):
@@ -917,19 +978,17 @@ def _(
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md(
-        r"""
+def _():
+    mo.md(r"""
     ## 4. Save Generated Audio
 
     Save the generated audio to WAV files.
-    """
-    )
+    """)
     return
 
 
-@app.cell
-def _(mo):
+@app.cell(hide_code=True)
+def _():
     # Save controls
     output_dir = mo.ui.text(
         value="data/generated_audio",
@@ -946,17 +1005,13 @@ def _(mo):
     return output_dir, save_audio_driven_btn, save_manual_phrase_btn
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
-    Path,
     audio_driven_output,
-    datetime,
     manual_phrase_output,
-    mo,
     output_dir,
     save_audio_driven_btn,
     save_manual_phrase_btn,
-    sf,
 ):
     # Save functionality
     output_messages = []
@@ -995,6 +1050,133 @@ def _(
         save_audio_display = mo.md("_Click buttons above to save audio_")
 
     save_audio_display
+    return
+
+
+@app.cell
+def _(ddsp_model):
+    def get_vln1():
+        seed_p = np.array((0, 0.7, 0.3, 1.0))
+        seed_a = np.array((0, 0.375, 0.625, 1.0))
+
+        vln1 = Part("Vln. 1", ddsp_model)
+        for i, dr in enumerate([2, 4, 8]):
+            seed_d = k.to_delta(seed_a * dr)
+            pitches, durs = k.fractal_bpc_floor(seed_p, seed_d, i)
+            pitches = np.pad(
+                pitches,
+                (0, k.time_to_step(dr) - len(pitches)),
+                constant_values=pitches[-1],
+            )
+            pitches = (pitches - min(pitches)) / (max(pitches) - min(pitches))
+            pitches = k.rescale(pitches, 66, 66 + 12)
+            pitches = k.autotune(pitches, 0.95)
+            pitches += k.sinusoid(dr, 4, 0, 0.125)
+
+            if i < 2:
+                amp_segments = []
+                for d in durs:
+                    aa = k.triangle(d, 1 / d, 1e-7)
+                    aa = np.pad(
+                        aa,
+                        (0, k.time_to_step(d) - len(aa)),
+                        constant_values=aa[-1],
+                    )
+                    amp_segments.append(aa)
+                amps = np.concatenate(amp_segments)
+                amps = np.pad(
+                    amps,
+                    (0, k.time_to_step(dr) - len(amps)),
+                    constant_values=amps[-1],
+                )
+                amps = k.rescale(amps, -70, -35)
+                amps += k.line_segment(dr, -8, 4)
+            else:
+                amps = k.line_segment(dr, 0, 1)
+                amps = np.pad(
+                    amps,
+                    (0, k.time_to_step(dr) - len(amps)),
+                    constant_values=amps[-1],
+                )
+                amps = k.rescale(amps, -70, -35)
+
+            amps += np.random.randn(*amps.shape) * 0.5
+            vln1.add_phrase(Phrase(pitches, amps, 1.0 * np.ones_like(pitches)))
+
+            breathe_p = k.constant(1 + i, pitches[-1])
+            vib = k.sinusoid(1 + i, 4, 0, 0.125) * (
+                k.phasor(1 + i, 1 / (1 + i)) ** 2
+            )
+            breathe_p += vib
+            if i == 2:
+                breath_amp = 1 - k.phasor(1 + i, 1 / (1 + i))
+                breath_amp = k.rescale(breath_amp, -70, -35)
+                breath_amp[-1] = breath_amp[-2]
+            else:
+                breath_amp = k.line_segment(1 + i, 0, 1) * 9 - 55
+
+            breath_amp += np.random.randn(*breath_amp.shape) * 0.5
+            vln1.add_phrase(
+                Phrase(breathe_p, breath_amp, 1.0 * np.ones_like(breathe_p))
+            )
+        return vln1
+    return
+
+
+@app.cell
+def _(ddsp_model):
+    def get_part():
+        part = Part("Vln. 2", ddsp_model)
+        # pitches = k.constant(6.0, 60.0)
+        pitches = k.bpc([60, 60, 62, 62, 63, 63], [1.9, 0.1, 1.9, 0.1, 2.0])
+        pitches += k.sinusoid(6, 4, 0, 0.125)
+        amps = k.line_segment(6.0, -70, -15)
+        amps += np.random.randn(*amps.shape)
+        part.add_phrase(Phrase(pitches, amps, np.ones_like(amps)))
+
+        return part
+    return (get_part,)
+
+
+@app.cell
+def _(get_part):
+    vln1 = get_part()
+    return (vln1,)
+
+
+@app.cell
+def _(vln1):
+    mo.audio(src=vln1.audio(), rate=SAMPLE_RATE, normalize=False)
+    return
+
+
+@app.cell
+def _(vln1):
+    vln1.show()
+    return
+
+
+@app.cell
+def _():
+    # vln1.video('/home/kureta/Downloads/vid.m4v')
+    return
+
+
+@app.cell
+def _():
+    # score = Score([vln1])
+    return
+
+
+@app.cell
+def _():
+    # score.save('fractus-duo', './audio-data/december/')
+    return
+
+
+@app.cell
+def _():
+    # score.audio()
     return
 
 

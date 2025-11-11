@@ -44,9 +44,7 @@ def _():
         Path,
         calculate_dissonance_curve,
         find_consonant_intervals,
-        generate_scales_from_intervals,
         generate_synthetic_partials,
-        get_all_modes,
         json,
         librosa,
         load_audio,
@@ -116,19 +114,20 @@ def _(Path, mo):
 
 
 @app.cell
-def _(fixed_loaded, load_audio, mo):
-    mo.audio(load_audio(fixed_loaded["source_file"], 48000)[0], 48000)
+def _(fixed_loaded, fixed_source, load_audio, mo):
+    if fixed_source.value == "Load from file":
+        _ = mo.audio(load_audio(fixed_loaded["source_file"], 48000)[0], 48000)
+    _
     return
 
 
 @app.cell(hide_code=True)
-def _(librosa, mo, np):
+def _(mo):
     # Synthetic partials controls for fixed sound
-    fixed_f0 = mo.ui.slider(
-        steps=np.logspace(
-            np.log2(55.0), np.log2(880.0), num=100, base=2.0
-        ).tolist(),
-        value=float(librosa.note_to_hz("C4")),
+    fixed_midi = mo.ui.slider(
+        start=0,
+        stop=127,
+        value=60,
         show_value=True,
         label="F0 (Hz):",
     )
@@ -162,20 +161,20 @@ def _(librosa, mo, np):
 
     mo.vstack(
         [
-            fixed_f0,
+            fixed_midi,
             fixed_n_partials,
             fixed_stretch,
             fixed_decay,
         ]
     )
-    return fixed_decay, fixed_f0, fixed_n_partials, fixed_stretch
+    return fixed_decay, fixed_midi, fixed_n_partials, fixed_stretch
 
 
 @app.cell(hide_code=True)
 def _(
     fixed_decay,
-    fixed_f0,
     fixed_file_selector,
+    fixed_midi,
     fixed_n_partials,
     fixed_source,
     fixed_stretch,
@@ -188,19 +187,20 @@ def _(
     # Generate or load fixed partials
     if fixed_source.value == "Synthetic":
         fixed_partials, fixed_amps = generate_synthetic_partials(
-            f0=fixed_f0.value,
+            f0=librosa.midi_to_hz(fixed_midi.value),
             n_partials=fixed_n_partials.value,
             stretch_factor=fixed_stretch.value,
             amp_decay_factor=fixed_decay.value,
         )
         fixed_status = mo.md(
-            f"**Generated synthetic partials** (F0={fixed_f0.value:.1f} Hz)"
+            f"**Generated synthetic partials** (F0={fixed_midi.value:.1f} ({librosa.midi_to_note(fixed_midi.value)}))"
         )
     elif fixed_source.value == "Load from file" and fixed_file_selector.value:
         try:
             with open(fixed_file_selector.value, "r") as fixed_file_handle:
                 fixed_loaded = json.load(fixed_file_handle)
-            fixed_partials = np.array(fixed_loaded["frequencies"])
+            fixed_loaded["f0"] *= 16
+            fixed_partials = np.array(fixed_loaded["frequencies"]) * 16
             fixed_amps = np.array(fixed_loaded["amplitudes"])
             fixed_status = mo.md(
                 f"**Loaded from:** `{fixed_file_selector.value}`  \n"
@@ -252,8 +252,10 @@ def _(mo, partial_files):
 
 
 @app.cell
-def _(load_audio, mo, swept_loaded):
-    mo.audio(load_audio(swept_loaded["source_file"], 48000)[0], 48000)
+def _():
+    # if swept_source.value == "Load from file":
+    #     _ = mo.audio(load_audio(swept_loaded["source_file"], 48000)[0], 48000)
+    # _
     return
 
 
@@ -392,8 +394,8 @@ def _(mo):
 def _(mo):
     # Dissonance curve parameters
     start_cents = mo.ui.slider(
-        start=-2400,
-        stop=2400,
+        start=-3800,
+        stop=5000,
         value=-100,
         step=100,
         show_value=True,
@@ -593,6 +595,12 @@ def _(
     return (consonant_cents,)
 
 
+@app.cell
+def _(consonant_cents, np):
+    [f"{c / 100:.2f}" for c in np.round((consonant_cents + 1200))]
+    return
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -641,10 +649,16 @@ def _(mo):
         kind="success",
     )
     midi_note = mo.ui.slider(0, 127, 1, 60, show_value=True)
-    base_vol = mo.ui.slider(0.1, 1, 0.1, 1.0, show_value=True)
-    swept_vol = mo.ui.slider(0.1, 1, 0.1, 1.0, show_value=True)
+    base_vol = mo.ui.slider(0.0, 1, 0.1, 1.0, show_value=True)
+    swept_vol = mo.ui.slider(0.0, 1, 0.1, 1.0, show_value=True)
     generate_audio_button, midi_note, base_vol, swept_vol
-    return base_vol, generate_audio_button, midi_note, swept_vol
+    return base_vol, generate_audio_button, swept_vol
+
+
+@app.cell
+def _():
+    # fixed_loaded["f0"], base_f0/16, base_f0_midi + consonant_cents/100.0
+    return
 
 
 @app.cell(hide_code=True)
@@ -661,7 +675,6 @@ def _(
     interval_gap_slider,
     librosa,
     load_audio,
-    midi_note,
     mo,
     np,
     swept_amps,
@@ -689,14 +702,18 @@ def _(
             # Generate base sound
             if fixed_source.value == "Synthetic":
                 base_audio = synthesize_audio_from_partials(
-                    fixed_partials,
+                    fixed_partials / 16,
                     fixed_amps,
                     duration=duration,
                     sr=sr,
                 )
             else:
-                base_f0_midi = librosa.hz_to_midi(base_f0)
-                f0_offset = midi_note.value - base_f0_midi
+                base_f0_midi = librosa.hz_to_midi(base_f0 / 16)
+                # f0_offset = midi_note.value - base_f0_midi
+                f0_offset = (
+                    librosa.hz_to_midi(fixed_loaded["f0"] / 16) - base_f0_midi
+                )
+
                 base_audio_ = load_audio(fixed_loaded["source_file"], sr)[0][
                     : int(duration * sr)
                 ]
@@ -709,7 +726,7 @@ def _(
                 if swept_source.value == "Synthetic":
                     # For synthetic, just transpose the frequencies
                     ratio = 2 ** (interval_cents / 1200.0)
-                    swept_freq_transposed = swept_partials * ratio
+                    swept_freq_transposed = swept_partials * ratio / 16
                     swept_audio = synthesize_audio_from_partials(
                         swept_freq_transposed,
                         swept_amps,
@@ -725,7 +742,8 @@ def _(
                     # Pitch shift by interval_cents
                     n_steps = (
                         interval_cents / 100.0
-                        + midi_note.value
+                        # + midi_note.value
+                        + librosa.hz_to_midi(fixed_loaded["f0"] / 16)
                         - librosa.hz_to_midi(swept_f0_orig)
                     )  # Convert cents to semitones
                     swept_audio = librosa.effects.pitch_shift(
@@ -761,7 +779,10 @@ def _(
                 ),
                 mo.md(
                     ", ".join(
-                        [f"{int(np.round(c))} cents" for c in consonant_cents]
+                        [
+                            f"{int(np.round(c - consonant_cents[0]))} cents"
+                            for c in consonant_cents
+                        ]
                     )
                 ),
                 mo.audio(src=consonant_audio, rate=sr),
@@ -800,92 +821,15 @@ def _(mo):
 
 
 @app.cell
-def _(consonant_cents, generate_scales_from_intervals, get_all_modes, mo, np):
-    # Generate scales from consonant intervals
-    if consonant_cents is not None and len(consonant_cents) > 0:
-        try:
-            # Group intervals by octave position (simplified)
-            # This is a basic grouping - the original has more sophisticated logic
-            octave_approx = 1200  # cents
+def _(consonant_cents):
+    [f"{x:.2f}" for x in consonant_cents/100.0], consonant_cents/100.0
+    return
 
-            # Create interval groups (unison, 2nds, 3rds, etc.)
-            # Simplified: group by proximity to scale degrees
-            intervals_grouped = [
-                [0],  # unison
-                list(
-                    consonant_cents[
-                        (consonant_cents > 0) & (consonant_cents < 250)
-                    ]
-                ),
-                list(
-                    consonant_cents[
-                        (consonant_cents >= 250) & (consonant_cents < 400)
-                    ]
-                ),
-                list(
-                    consonant_cents[
-                        (consonant_cents >= 400) & (consonant_cents < 600)
-                    ]
-                ),
-                list(
-                    consonant_cents[
-                        (consonant_cents >= 600) & (consonant_cents < 800)
-                    ]
-                ),
-                list(
-                    consonant_cents[
-                        (consonant_cents >= 800) & (consonant_cents < 1000)
-                    ]
-                ),
-                list(
-                    consonant_cents[
-                        (consonant_cents >= 1000) & (consonant_cents < 1200)
-                    ]
-                ),
-                [int(np.round(octave_approx))],  # octave
-            ]
 
-            # Convert to integers
-            intervals_grouped = [
-                [int(np.round(c)) for c in group] if group else [0]
-                for group in intervals_grouped
-            ]
-
-            # Generate scales (if we have enough intervals)
-            if all(len(group) > 0 for group in intervals_grouped):
-                scales = generate_scales_from_intervals(intervals_grouped)
-                modes = get_all_modes(scales)
-
-                scales_display = mo.vstack(
-                    [
-                        mo.md(f"**Generated {len(scales)} scales**"),
-                        mo.md(
-                            f"**Generated {len(modes)} modes (including rotations)**"
-                        ),
-                        mo.md("**Example scales:**"),
-                        mo.md("\n\n".join([str(s) for s in scales[:5]])),
-                    ]
-                )
-            else:
-                scales = None
-                modes = None
-                scales_display = mo.md(
-                    "**Not enough intervals to generate scales.** "
-                    "Try adjusting consonant interval detection parameters."
-                )
-        except Exception as e:
-            scales = None
-            modes = None
-            intervals_grouped = None
-            scales_display = mo.md(f"**Error generating scales:** {e}")
-    else:
-        scales = None
-        modes = None
-        intervals_grouped = None
-        scales_display = mo.md("**Find consonant intervals first**")
-
-    scales_display
-    return intervals_grouped, modes, scales
+@app.cell
+def _():
+    # base_f0_midi + consonant_cents / 100.0
+    return
 
 
 @app.cell(hide_code=True)
@@ -919,7 +863,7 @@ def _(mo):
     return save_dir_scales, save_name_scales, save_scales_btn
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(
     Path,
     consonant_cents,
